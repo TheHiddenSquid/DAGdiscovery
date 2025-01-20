@@ -161,17 +161,71 @@ def update_DAG(edges, partition):
 
     return new_edges.copy(), new_partition.copy()
 
+
+def score_DAG(samples, edge_array, partition):
+    samples = np.transpose(samples)
+
+    n = sum(len(x) for x in partition)
+
+
+    # Calculate ML-eval of the different lambdas
+    edges_ML = np.zeros((n,n), dtype="float")
+    for i in range(n):
+        parents = get_parents(i, edge_array)
+        ans = np.linalg.solve(np.matmul(samples[parents,:],np.transpose(samples[parents,:])), np.matmul(samples[parents,:],np.transpose(samples[i,:])))
+        edges_ML[parents, i] = ans
+
+
+    # Calculate ML-eval of the different color omegas
+    omegas_for_color = [None] * len(partition)
+
+    for i, part in enumerate(partition):
+        if len(part) == 0:
+            continue  
+        tot = 0
+        for node in part:
+            parents = get_parents(node, edge_array)
+            tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+        omegas_for_color[i] = tot / (n * len(part))
+
+    omegas_ML = [None] * n
+    for i, part in enumerate(partition):
+        for node in part:
+            omegas_ML[node] = omegas_for_color[i]
+
+
+    # Calculate BIC
+    tot = 0
+    for i, part in enumerate(partition):
+        if len(part) == 0:
+            continue
+        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - np.log(n) * (1/n) * sum(len(get_parents(x, edge_array)) for x in part)
+    bic = tot / 2
+
+
+    return bic
+
+def get_parents(node, edges):
+    parents = []
+    n = np.shape(edges)[0]
+    for i in range(n):
+        if edges[i,node] == 1:
+            parents.append(i)
+    return parents
+
+
 def main():
-    no_nodes = 10
+    no_nodes = 5
     no_colors = 3
-    edge_probability = 0.2
+    edge_probability = 0.5
+    sample_size = 1000
 
     partition, lambda_matrix, omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
-    samples = generate_sample(100000, lambda_matrix, omega_matrix)
+    samples = generate_sample(sample_size, lambda_matrix, omega_matrix)
 
 
     # Create plots
-    fig, (ax1, ax2) = plt.subplots(1, 2)
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
 
 
     # Plot data generating graph
@@ -183,59 +237,82 @@ def main():
 
 
 
-
     # GES estimate of graph
+    plt.axes(ax2)
     res = ges.fit_bic(data=samples)
+    GES_edge_array = res[0]
+    G = nx.DiGraph(GES_edge_array)
+    nx.draw_circular(G, with_labels=True)
+    plt.title("GES estimated CPDAG")
+
+
 
     # Take an initial DAG from the given CPDAG
-    edges = res[0]
+    
     double = []
     for i in range(no_nodes):
         for j in range(i+1, no_nodes):
-            if edges[i,j] == 1 and edges[j,i] == 1:
+            if GES_edge_array[i,j] == 1 and GES_edge_array[j,i] == 1:
                 double.append((i,j))
-                edges[i,j] = 0
-                edges[j,i] = 0
+                GES_edge_array[i,j] = 0
+                GES_edge_array[j,i] = 0
 
     for edge in double:
-        new_edges = edges.copy()
+        new_edges = GES_edge_array.copy()
         new_edges[edge[0], edge[1]] = 1
         G = nx.DiGraph(new_edges)
         if nx.is_directed_acyclic_graph(G):
-            edges = new_edges
+            GES_edge_array = new_edges
             continue
 
-        new_edges = edges.copy()
+        new_edges = GES_edge_array.copy()
         new_edges[edge[1], edge[0]] = 1
         G = nx.DiGraph(new_edges)
         if nx.is_directed_acyclic_graph(G):
-            edges = new_edges
+            GES_edge_array = new_edges
             continue
 
         raise ValueError("Could not create graph")
 
 
     # Initial coloring guess
-    partition = generate_partition(no_nodes, no_colors)
+    partition = generate_partition(no_nodes, no_nodes)
     
 
     # Make random moves
+    global anim_samples
     global anim_edges
     global anim_partition
-    anim_edges = edges.copy()
+    anim_samples = samples.copy()
+    anim_edges = GES_edge_array.copy()
     anim_partition = partition.copy()
 
-    plt.axes(ax2)
+    plt.axes(ax3)
     G = nx.DiGraph(anim_edges)
     nx.draw_circular(G, node_color=color_map, with_labels=True)
     plt.title("MCMC")
 
 
+    score_DAG(samples, anim_edges, anim_partition)
+
+
+
     def update(frame):
-        ax2.clear()
+        ax3.clear()
         global anim_edges
         global anim_partition
+        global anim_samples
+
+        old_anim_edges = anim_edges.copy()
+        old_anim_partition = anim_partition.copy()
+
         anim_edges, anim_partition = update_DAG(anim_edges, anim_partition)
+
+        if score_DAG(anim_samples, anim_edges, anim_partition) <= score_DAG(anim_samples, old_anim_edges, old_anim_partition):
+            if random.random() < 0.9:
+                anim_edges = old_anim_edges
+                anim_partition = old_anim_partition
+
 
         color_map = generate_color_map(anim_partition)
         G = nx.DiGraph(anim_edges)

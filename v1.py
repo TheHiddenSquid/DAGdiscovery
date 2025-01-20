@@ -119,8 +119,10 @@ def main():
     plt.title("GES resulting CPDAG")
 
     print("score:", res[1])
+    print(res[0])
     plt.show()
 
+    
     
     
 

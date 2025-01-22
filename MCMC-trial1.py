@@ -75,9 +75,9 @@ def generate_partition(no_nodes, no_colors):
     return partition
 
 def generate_color_map(partition):
-    if len(partition) > 6:
+    if len(partition) > 10:
         raise ValueError("Too many colors needed for color map generation")
-    colors = ["red", "green", "blue", "yellow", "purple", "brown"]
+    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink"]
     length = sum([len(x) for x in partition])
     color_map = [None] * length
 
@@ -88,7 +88,7 @@ def generate_color_map(partition):
     return color_map
 
 
-def update_DAG(edges, partition):
+def update_DAG(edge_array, partition):
     moves = ["add", "remove", "change_color"]
     move = random.choice(moves)
 
@@ -101,7 +101,7 @@ def update_DAG(edges, partition):
         done = False
 
         for start in start_options:
-            neighbors = edges[start]
+            neighbors = edge_array[start]
             if sum(neighbors) == no_nodes-1:
                 continue
             options = np.nonzero(neighbors == 0)[0]
@@ -110,18 +110,18 @@ def update_DAG(edges, partition):
             random.shuffle(options)
             
             for option in options:
-                edges[start, option] = 1
-                G = nx.DiGraph(edges)
+                edge_array[start, option] = 1
+                G = nx.DiGraph(edge_array)
                 if nx.is_directed_acyclic_graph(G):
                     done = True
                     break
-                edges[start, option] = 0
+                edge_array[start, option] = 0
             if done:
                 break
         else:
             print("failed to add edge")
 
-        new_edges = edges
+        new_edge_array = edge_array
         new_partition = partition
 
 
@@ -130,17 +130,17 @@ def update_DAG(edges, partition):
         random.shuffle(start_options)
 
         for node in start_options:
-            neighbors = edges[node]
+            neighbors = edge_array[node]
             if sum(neighbors) == 0:
                 continue
             options = neighbors.nonzero()[0]
             to_remove = random.choice(options)
-            edges[node, to_remove] = 0
+            edge_array[node, to_remove] = 0
             break
         else:
             print("failed to remove edge")
 
-        new_edges = edges
+        new_edge_array = edge_array
         new_partition = partition
 
 
@@ -156,11 +156,10 @@ def update_DAG(edges, partition):
             new_color = random.randrange(no_colors)
         partition[new_color].append(node)
 
-        new_edges = edges
+        new_edge_array = edge_array
         new_partition = partition
 
-    return new_edges.copy(), new_partition.copy()
-
+    return new_edge_array.copy(), new_partition.copy()
 
 def score_DAG(samples, edge_array, partition):
     samples = np.transpose(samples)
@@ -205,24 +204,23 @@ def score_DAG(samples, edge_array, partition):
 
     return bic
 
-def get_parents(node, edges):
+def get_parents(node, edge_array):
     parents = []
-    n = np.shape(edges)[0]
+    n = np.shape(edge_array)[0]
     for i in range(n):
-        if edges[i,node] == 1:
+        if edge_array[i, node] == 1:
             parents.append(i)
     return parents
 
 
 def main():
-    no_nodes = 5
+    no_nodes = 10
     no_colors = 3
     edge_probability = 0.5
     sample_size = 1000
 
     partition, lambda_matrix, omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
-    samples = generate_sample(sample_size, lambda_matrix, omega_matrix)
-
+    
 
     # Create plots
     fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
@@ -233,12 +231,13 @@ def main():
     G = nx.DiGraph(lambda_matrix)
     color_map = generate_color_map(partition)
     nx.draw_circular(G, node_color=color_map, with_labels=True)
-    plt.title("Data generating DAG")
+    plt.title("Real DAG")
 
 
 
     # GES estimate of graph
     plt.axes(ax2)
+    samples = generate_sample(sample_size, lambda_matrix, omega_matrix)
     res = ges.fit_bic(data=samples)
     GES_edge_array = res[0]
     G = nx.DiGraph(GES_edge_array)
@@ -246,8 +245,8 @@ def main():
     plt.title("GES estimated CPDAG")
 
 
-
-    # Take an initial DAG from the given CPDAG
+    # MCMC setup
+    # Take an initial DAG from the given GES CPDAG
     
     double = []
     for i in range(no_nodes):
@@ -272,7 +271,7 @@ def main():
             GES_edge_array = new_edges
             continue
 
-        raise ValueError("Could not create graph")
+        raise ValueError("Could not create DAG")
 
 
     # Initial coloring guess
@@ -293,9 +292,6 @@ def main():
     plt.title("MCMC")
 
 
-    score_DAG(samples, anim_edges, anim_partition)
-
-
 
     def update(frame):
         ax3.clear()
@@ -308,8 +304,11 @@ def main():
 
         anim_edges, anim_partition = update_DAG(anim_edges, anim_partition)
 
-        if score_DAG(anim_samples, anim_edges, anim_partition) <= score_DAG(anim_samples, old_anim_edges, old_anim_partition):
-            if random.random() < 0.9:
+        new_bic = score_DAG(anim_samples, anim_edges, anim_partition)
+        old_bic = score_DAG(anim_samples, old_anim_edges, old_anim_partition)
+
+        if new_bic <= old_bic:
+            if random.random() > new_bic / old_bic: 
                 anim_edges = old_anim_edges
                 anim_partition = old_anim_partition
 
@@ -320,15 +319,11 @@ def main():
         plt.title("MCMC")
 
 
-
-    ani = animation.FuncAnimation(fig=fig, func=update, frames=40, interval=100)
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=40, interval=10)
     plt.show()
 
 
-    #print("score:", res[1])
-    plt.show()
 
-    
     
 if __name__ == "__main__":
     main()

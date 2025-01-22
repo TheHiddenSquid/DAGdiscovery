@@ -90,62 +90,47 @@ def generate_color_map(partition):
 
 
 def update_DAG(edge_array, partition):
-    moves = ["add", "remove", "change_color"]
-    move = random.choice(moves)
+    non_existing_edges = np.nonzero(edge_array == 0)
 
-    no_nodes = sum(len(x) for x in partition)
-    no_colors = len(partition)
+    edges_giving_DAGs = []
+    for i in range(len(non_existing_edges[0])):
+        edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 1
+        G = nx.DiGraph(edge_array)
+        if nx.is_directed_acyclic_graph(G):
+            edges_giving_DAGs.append(i)
+        edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 0
+
+    k = len(edges_giving_DAGs)  # Number of edges that can be added
+    m = np.sum(edge_array)         # Number of current edges
+
+
+    moves = ["remove", "add", "change_color"]
+    move = random.choices(moves, weights=((2/3)*((m+1)/(m+k+1)), (2/3)*(k/(m+k+1)), 1/3), k=1)[0]
+
+    
 
     if move == "add":
-        start_options = [*range(no_nodes)]
-        random.shuffle(start_options)
-        done = False
-
-        for start in start_options:
-            neighbors = edge_array[start]
-            if sum(neighbors) == no_nodes-1:
-                continue
-            options = np.nonzero(neighbors == 0)[0]
-            options = list(options)
-            options.remove(start)
-            random.shuffle(options)
-            
-            for option in options:
-                edge_array[start, option] = 1
-                G = nx.DiGraph(edge_array)
-                if nx.is_directed_acyclic_graph(G):
-                    done = True
-                    break
-                edge_array[start, option] = 0
-            if done:
-                break
-        else:
-            print("failed to add edge")
+        index = random.choice(edges_giving_DAGs)
+        edge_array[non_existing_edges[0][index], non_existing_edges[1][index]] = 1
 
         new_edge_array = edge_array
         new_partition = partition
 
 
     elif move == "remove":
-        start_options = [*range(no_nodes)]
-        random.shuffle(start_options)
+        edges = np.nonzero(edge_array)
 
-        for node in start_options:
-            neighbors = edge_array[node]
-            if sum(neighbors) == 0:
-                continue
-            options = neighbors.nonzero()[0]
-            to_remove = random.choice(options)
-            edge_array[node, to_remove] = 0
-            break
-        else:
-            print("failed to remove edge")
+        index = random.randrange(len(edges[0]))
+        edge_array[edges[0][index], edges[1][index]] = 0
 
         new_edge_array = edge_array
         new_partition = partition
 
 
     elif move == "change_color":
+        no_nodes = sum(len(x) for x in partition)
+        no_colors = len(partition)
+
         node = random.randrange(no_nodes)
         for i, part in enumerate(partition):
             if node in part:
@@ -385,13 +370,13 @@ def main():
             plt.scatter(bics, SHDs)
             plt.xlabel("BIC")
             plt.ylabel("SHD")
-            plt.title("BIC and SHD realtion")
+            plt.title("BIC and SHD relation")
 
 
 
 
 
-    ani = animation.FuncAnimation(fig=fig, func=update, frames=40, interval=1)
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=40, interval=10)
     plt.show()
 
 

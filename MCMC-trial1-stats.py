@@ -90,62 +90,88 @@ def generate_color_map(partition):
 
 
 def update_DAG(edge_array, partition):
-    non_existing_edges = np.nonzero(edge_array == 0)
+    tmp_edge_array = edge_array.copy()
+    tmp_partition = partition.copy()
 
-    edges_giving_DAGs = []
-    for i in range(len(non_existing_edges[0])):
-        edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 1
-        G = nx.DiGraph(edge_array)
-        if nx.is_directed_acyclic_graph(G):
-            edges_giving_DAGs.append(i)
-        edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 0
+    m = np.sum(tmp_edge_array)          # Number of current edges
+    no_nodes = np.shape(edge_array)[0]  # Number of current noded
+    no_colors = len(tmp_partition)      # Number of possible colors
 
-    k = len(edges_giving_DAGs)  # Number of edges that can be added
-    m = np.sum(edge_array)         # Number of current edges
+    moves = [ "change_color", "add_edge", "remove_edge"]
+    move = random.choice(moves)
 
 
-    moves = ["remove", "add", "change_color"]
-    move = random.choices(moves, weights=((2/3)*((m+1)/(m+k+1)), (2/3)*(k/(m+k+1)), 1/3), k=1)[0]
-
-    
-
-    if move == "add":
-        index = random.choice(edges_giving_DAGs)
-        edge_array[non_existing_edges[0][index], non_existing_edges[1][index]] = 1
-
-        new_edge_array = edge_array
-        new_partition = partition
-
-
-    elif move == "remove":
-        edges = np.nonzero(edge_array)
-
-        index = random.randrange(len(edges[0]))
-        edge_array[edges[0][index], edges[1][index]] = 0
-
-        new_edge_array = edge_array
-        new_partition = partition
-
-
-    elif move == "change_color":
-        no_nodes = sum(len(x) for x in partition)
-        no_colors = len(partition)
-
+    if move == "change_color":
         node = random.randrange(no_nodes)
-        for i, part in enumerate(partition):
+        for i, part in enumerate(tmp_partition):
             if node in part:
                 current_color = i
-        partition[current_color].remove(node)
+                break
+        tmp_partition[current_color].remove(node)
 
         new_color = current_color
         while new_color == current_color:
             new_color = random.randrange(no_colors)
-        partition[new_color].append(node)
+        tmp_partition[new_color].append(node)
 
-        new_edge_array = edge_array
-        new_partition = partition
+        # Relative probability of jumping back
+        q_quotient = 1
 
-    return new_edge_array.copy(), new_partition.copy()
+
+    if move == "add_edge":
+        non_existing_edges = np.nonzero(tmp_edge_array == 0)
+
+        edges_giving_DAGs = []
+        for i in range(len(non_existing_edges[0])):
+            if tmp_edge_array[non_existing_edges[1][i], non_existing_edges[0][i]] == 1:
+                continue
+            tmp_edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 1
+            G = nx.DiGraph(tmp_edge_array)
+            if nx.is_directed_acyclic_graph(G):
+                edges_giving_DAGs.append(i)
+            tmp_edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 0
+
+        k_old = len(edges_giving_DAGs)  # Number of edges that can be added
+
+        if k_old == 0:
+            print("Could not add edge to graph")
+            q_quotient = 1
+        else:
+            index = random.choice(edges_giving_DAGs)
+            tmp_edge_array[non_existing_edges[0][index], non_existing_edges[1][index]] = 1
+
+            # Relative probability of jumping back
+            q_quotient = k_old / (m+1)
+    
+
+    if move == "remove_edge":
+        if m == 0:
+            print("Could not remove edge")
+            q_quotient = 1
+        else:
+            edges = np.nonzero(tmp_edge_array)
+            index = random.randrange(len(edges[0]))
+            tmp_edge_array[edges[0][index], edges[1][index]] = 0
+
+            # Relative probability of jumping back
+            non_existing_edges = np.nonzero(tmp_edge_array == 0)
+
+            edges_giving_DAGs = []
+            for i in range(len(non_existing_edges[0])):
+                if tmp_edge_array[non_existing_edges[1][i], non_existing_edges[0][i]] == 1:
+                    continue
+                tmp_edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 1
+                G = nx.DiGraph(tmp_edge_array)
+                if nx.is_directed_acyclic_graph(G):
+                    edges_giving_DAGs.append(i)
+                tmp_edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 0
+
+            k_new = len(edges_giving_DAGs)
+
+            q_quotient = m / k_new
+
+
+    return tmp_edge_array, tmp_partition, q_quotient
 
 def score_DAG(samples, edge_array, partition):
     samples = np.transpose(samples)
@@ -206,7 +232,7 @@ def calc_SHD(edge_array1, edge_array2):
 def main():
     no_nodes = 10
     no_colors = 4
-    edge_probability = 0.2
+    edge_probability = 0.5
     sample_size = 1000
 
     real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
@@ -303,24 +329,18 @@ def main():
         old_anim_edges = anim_edges.copy()
         old_anim_partition = anim_partition.copy()
 
-        new_anim_edges, new_anim_partition = update_DAG(old_anim_edges, old_anim_partition)
+        new_anim_edges, new_anim_partition, q_quotient = update_DAG(old_anim_edges, old_anim_partition)
 
         new_bic = score_DAG(anim_samples, new_anim_edges, new_anim_partition)
         old_bic = score_DAG(anim_samples, old_anim_edges, old_anim_partition)
 
-        did_jump = False
-        if new_bic > old_bic:
-            did_jump = True
+  
+        if random.random() <= (new_bic / old_bic)*q_quotient: 
             anim_edges = new_anim_edges
             anim_partition = new_anim_partition
         else:
-            if random.random() <= new_bic / old_bic: 
-                anim_edges = new_anim_edges
-                anim_partition = new_anim_partition
-                did_jump = True
-            else:
-                anim_edges = old_anim_edges
-                anim_partition = old_anim_partition
+            anim_edges = old_anim_edges
+            anim_partition = old_anim_partition
 
 
         color_map = generate_color_map(anim_partition)
@@ -333,44 +353,42 @@ def main():
         global cumsum
         global SHDs
 
-        if did_jump:
+        bics.append(new_bic)
+        plt.axes(ax21)
+        ax21.clear()
+        plt.plot(range(len(bics)),bics)
+        plt.xlabel("iterations")
+        plt.ylabel("BIC")
+        plt.title("BIC")
 
-            bics.append(new_bic)
-            plt.axes(ax21)
-            ax21.clear()
-            plt.plot(range(len(bics)),bics)
-            plt.xlabel("iterations")
-            plt.ylabel("BIC")
-            plt.title("BIC")
+        plt.axes(ax22)
+        ax22.clear()
+        cumsum.append(cumsum[-1]+new_bic)
 
-            plt.axes(ax22)
-            ax22.clear()
-            cumsum.append(cumsum[-1]+new_bic)
-
-            plt.plot(range(len(bics)),[cumsum[i]/(i+1) for i in range(len(bics))])
-            plt.xlabel("iterations")
-            plt.ylabel("BIC")
-            plt.title("Rolling Average")
+        plt.plot(range(len(bics)),[cumsum[i]/(i+1) for i in range(len(bics))])
+        plt.xlabel("iterations")
+        plt.ylabel("BIC")
+        plt.title("Rolling Average")
 
 
-            # SHD for each iteration
-            plt.axes(ax31)
-            ax31.clear()
-            SHDs.append(calc_SHD(real_edge_array, anim_edges))
+        # SHD for each iteration
+        plt.axes(ax31)
+        ax31.clear()
+        SHDs.append(calc_SHD(real_edge_array, anim_edges))
 
-            plt.plot(range(len(SHDs)), SHDs)
-            plt.xlabel("iterations")
-            plt.ylabel("SHD")
-            plt.title("SHD")
+        plt.plot(range(len(SHDs)), SHDs)
+        plt.xlabel("iterations")
+        plt.ylabel("SHD")
+        plt.title("SHD")
 
-            # Scatter for intuition
-            plt.axes(ax32)
-            ax32.clear()
+        # Scatter for intuition
+        plt.axes(ax32)
+        ax32.clear()
 
-            plt.scatter(bics, SHDs)
-            plt.xlabel("BIC")
-            plt.ylabel("SHD")
-            plt.title("BIC and SHD relation")
+        plt.scatter(bics, SHDs)
+        plt.xlabel("BIC")
+        plt.ylabel("SHD")
+        plt.title("BIC and SHD relation")
 
 
 

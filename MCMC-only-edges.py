@@ -95,28 +95,10 @@ def update_DAG(edge_array, partition):
     tmp_partition = partition.copy()
 
     m = np.sum(tmp_edge_array)          # Number of current edges
-    no_nodes = np.shape(edge_array)[0]  # Number of current noded
-    no_colors = len(tmp_partition)      # Number of possible colors
 
-    moves = [ "change_color", "add_edge", "remove_edge"]
+
+    moves = ["add_edge", "remove_edge"]
     move = random.choice(moves)
-
-
-    if move == "change_color":
-        node = random.randrange(no_nodes)
-        for i, part in enumerate(tmp_partition):
-            if node in part:
-                current_color = i
-                break
-        tmp_partition[current_color].remove(node)
-
-        new_color = current_color
-        while new_color == current_color:
-            new_color = random.randrange(no_colors)
-        tmp_partition[new_color].append(node)
-
-        # Relative probability of jumping back
-        q_quotient = 1
 
 
     if move == "add_edge":
@@ -274,24 +256,6 @@ def get_parents(node, edge_array):
 def calc_SHD(edge_array1, edge_array2):
     return np.sum(np.abs(edge_array1-edge_array2))
 
-def calc_partition_distance(partition1, partition2):
-    pa1 = partition1.copy()
-    pa2 = partition2.copy()
-
-    n = sum(len(x) for x in pa1)
-    parts = max(len(pa1), len(pa2))
-
-    pa1 += [[]]*(parts - len(pa1))
-    pa2 += [[]]*(parts - len(pa2))
-
-    cost_matrix = np.zeros((parts, parts), dtype="int")
-    for i in range(parts):
-        for j in range(parts):
-            cost_matrix[i,j] = len(set(pa1[i]).intersection(set(pa2[j])))
-            
-    row_ind, col_ind = linear_sum_assignment(cost_matrix, maximize=True)
-
-    return n - cost_matrix[row_ind, col_ind].sum()
 
 
 def main():
@@ -372,6 +336,8 @@ def main():
 
     # RUN MCMC
 
+    initial_partition = real_partition
+
     current_edge_array = initial_edge_array.copy()
     current_partition = initial_partition.copy()
 
@@ -407,16 +373,17 @@ def main():
             best_iter = i
 
 
+    print("MCMC given correct colors")
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It tool {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", best_bic)
     print("Found on iteration:", best_iter)
     print("SHD to real DAG was:", calc_SHD(best_edge_array, real_edge_array))
-    print("The found DAG with correct coloring gives BIC:", score_DAG(samples, best_edge_array, real_partition))
-
+    
     if start_with_GES_DAG:
         print("A random GES DAG with correct coloring gives BIC:", score_DAG(samples, initial_edge_array, real_partition))
-        print("SHD to real DAG for it was:", calc_SHD(initial_edge_array, real_edge_array))
+        print("Its SHD to real DAG was:", calc_SHD(initial_edge_array, real_edge_array))
+
     print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
 
 

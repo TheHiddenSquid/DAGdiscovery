@@ -295,14 +295,18 @@ def calc_partition_distance(partition1, partition2):
 
 
 def main():
-    random.seed(10)
+    random.seed(100)
     no_nodes = 10
     no_colors = 4
     edge_probability = 0.3
     sample_size = 1000
+    start_with_GES_DAG = True
 
     real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
+
+    global samples
+    samples = generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
 
     # Create plots
@@ -313,78 +317,81 @@ def main():
     # Plot data generating graph
     plt.axes(ax11)
     G = nx.DiGraph(real_lambda_matrix)
-    color_map = generate_color_map(real_partition)
-    nx.draw_circular(G, node_color=color_map, with_labels=True)
+    nx.draw_circular(G, node_color=generate_color_map(real_partition), with_labels=True)
     plt.title("Real DAG")
 
 
-    # GES estimate of graph
-    samples = generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
-    res = ges.fit_bic(data=samples)
-    GES_edge_array = res[0]
+
+     # MCMC setup
+    if start_with_GES_DAG:
+        # GES estimate of graph
+        res = ges.fit_bic(data=samples)
+        GES_edge_array = res[0]
+        initial_edge_array = GES_edge_array.copy()
+
+       
+        # Take an initial DAG from the given GES CPDAG
+        double = []
+        for i in range(no_nodes):
+            for j in range(i+1, no_nodes):
+                if initial_edge_array[i,j] == 1 and initial_edge_array[j,i] == 1:
+                    double.append((i,j))
+                    initial_edge_array[i,j] = 0
+                    initial_edge_array[j,i] = 0
+
+        for edge in double:
+            new_edges = initial_edge_array.copy()
+            new_edges[edge[0], edge[1]] = 1
+            G = nx.DiGraph(new_edges)
+            if nx.is_directed_acyclic_graph(G):
+                initial_edge_array = new_edges
+                continue
+
+            new_edges = initial_edge_array.copy()
+            new_edges[edge[1], edge[0]] = 1
+            G = nx.DiGraph(new_edges)
+            if nx.is_directed_acyclic_graph(G):
+                initial_edge_array = new_edges
+                continue
+
+            raise ValueError("Could not create DAG")
+
+
+        # Initial coloring guess
+        initial_partition = generate_partition(no_nodes, no_nodes)
+
+    else:
+        # Start with random DAG
+        initial_partition, initial_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_nodes, 0.5)
+        initial_edge_array = np.array(initial_lambda_matrix != 0, dtype="int")
     
 
-    # MCMC setup
-    # Take an initial DAG from the given GES CPDAG
-    
-    double = []
-    for i in range(no_nodes):
-        for j in range(i+1, no_nodes):
-            if GES_edge_array[i,j] == 1 and GES_edge_array[j,i] == 1:
-                double.append((i,j))
-                GES_edge_array[i,j] = 0
-                GES_edge_array[j,i] = 0
 
-    for edge in double:
-        new_edges = GES_edge_array.copy()
-        new_edges[edge[0], edge[1]] = 1
-        G = nx.DiGraph(new_edges)
-        if nx.is_directed_acyclic_graph(G):
-            GES_edge_array = new_edges
-            continue
+    # More MCMC setup
+    global current_edge_array
+    global current_partition
 
-        new_edges = GES_edge_array.copy()
-        new_edges[edge[1], edge[0]] = 1
-        G = nx.DiGraph(new_edges)
-        if nx.is_directed_acyclic_graph(G):
-            GES_edge_array = new_edges
-            continue
-
-        raise ValueError("Could not create DAG")
-
-
-    # Initial coloring guess
-    initial_partition = generate_partition(no_nodes, no_nodes)
-    
-
-    # Make random moves
-    global anim_samples
-    global anim_edges
-    global anim_partition
-    anim_samples = samples.copy()
-    anim_edges = GES_edge_array.copy()
-    anim_partition = initial_partition.copy()
+    current_edge_array = initial_edge_array.copy()
+    current_partition = initial_partition.copy()
 
     plt.axes(ax12)
-    G = nx.DiGraph(anim_edges)
-    color_map = generate_color_map(initial_partition)
-    nx.draw_circular(G, node_color=color_map, with_labels=True)
+    G = nx.DiGraph(current_edge_array)
+    nx.draw_circular(G, node_color=generate_color_map(current_partition), with_labels=True)
     plt.title("MCMC")
 
 
     # Setop for BIC plots
     global bics
     global cumsum
-    start_bic = score_DAG(anim_samples, anim_edges, anim_partition)
+    start_bic = score_DAG(samples, current_edge_array, current_partition)
     bics = [start_bic]
     cumsum = [start_bic]
 
-
     global SHDs
-    SHDs = [calc_SHD(GES_edge_array, real_edge_array)]
+    SHDs = [calc_SHD(current_edge_array, real_edge_array)]
 
     global CHDs
-    CHDs = [calc_partition_distance(initial_partition, real_partition)]
+    CHDs = [calc_partition_distance(current_partition, real_partition)]
 
 
 
@@ -392,30 +399,30 @@ def main():
         # Update graph visuals
         plt.axes(ax12)
         ax12.clear()
-        global anim_edges
-        global anim_partition
-        global anim_samples
+        global current_edge_array
+        global current_partition
+        global samples
 
-        old_anim_edges = anim_edges.copy()
-        old_anim_partition = anim_partition.copy()
+        old_edge_array = current_edge_array.copy()
+        old_partition = current_partition.copy()
 
-        new_anim_edges, new_anim_partition, q_quotient = update_DAG(old_anim_edges, old_anim_partition)
+        new_edge_array, new_partition, q_quotient = update_DAG(old_edge_array, old_partition)
 
-        new_bic = score_DAG(anim_samples, new_anim_edges, new_anim_partition)
-        old_bic = score_DAG(anim_samples, old_anim_edges, old_anim_partition)
+        new_bic = score_DAG(samples, new_edge_array, new_partition)
+        old_bic = score_DAG(samples, old_edge_array, old_partition)
 
   
         if random.random() <= (new_bic / old_bic) * q_quotient: 
-            anim_edges = new_anim_edges
-            anim_partition = new_anim_partition
+            current_edge_array = new_edge_array
+            current_partition = new_partition
         else:
-            anim_edges = old_anim_edges
-            anim_partition = old_anim_partition
+            current_edge_array = old_edge_array
+            current_partition = old_partition
 
         #print(len(get_addable_edges(anim_edges)[0]))
         
-        color_map = generate_color_map(anim_partition)
-        G = nx.DiGraph(anim_edges)
+        color_map = generate_color_map(current_partition)
+        G = nx.DiGraph(current_edge_array)
         nx.draw_circular(G, node_color=color_map, with_labels=True)
         plt.title("MCMC")
 
@@ -446,7 +453,7 @@ def main():
         # SHD for each iteration
         plt.axes(ax31)
         ax31.clear()
-        SHDs.append(calc_SHD(real_edge_array, anim_edges))
+        SHDs.append(calc_SHD(real_edge_array, current_edge_array))
 
         plt.plot(range(len(SHDs)), SHDs)
         plt.xlabel("iterations")
@@ -466,7 +473,7 @@ def main():
         # CHD for each iteration
         plt.axes(ax41)
         ax41.clear()
-        CHDs.append(calc_partition_distance(real_partition, anim_partition))
+        CHDs.append(calc_partition_distance(real_partition, current_partition))
 
         plt.plot(range(len(CHDs)), CHDs)
         plt.xlabel("iterations")
@@ -483,14 +490,10 @@ def main():
         plt.title("BIC and CHD relation")
 
 
-
-
-
     ani = animation.FuncAnimation(fig=fig, func=update, frames=40, interval=10)
     plt.show()
 
 
 
-    
 if __name__ == "__main__":
     main()

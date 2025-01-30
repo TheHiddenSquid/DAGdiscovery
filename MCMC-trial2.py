@@ -90,133 +90,167 @@ def generate_color_map(partition):
     return color_map
 
 
-def update_DAG(edge_array, partition):
-    tmp_edge_array = edge_array.copy()
-    tmp_partition = partition.copy()
+def MCMC_iteration(edge_array, partition, samples, sorted_edges):
+    old_edge_array = edge_array.copy()
+    old_partition = partition.copy()
 
-    m = np.sum(tmp_edge_array)          # Number of current edges
-    no_nodes = np.shape(edge_array)[0]  # Number of current noded
-    no_colors = len(tmp_partition)      # Number of possible colors
+    potential_edge_array = edge_array.copy()
+    potential_partition = partition.copy()
+
+    
+    edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
+
+    m = len(edges_in_DAG)                   # Number of current edges
+    no_nodes = np.shape(edge_array)[0]      # Number of current noded
+    no_colors = len(potential_partition)    # Number of possible colors
+
 
     moves = [ "change_color", "add_edge", "remove_edge"]
+
+    if m == 0:
+        moves.remove("remove_edge")
+        print("could not remove edge")
+
+    if len(edges_giving_DAGs) == 0:
+        moves.remove("add_edge")
+        print("could not add edge")
+
     move = random.choice(moves)
 
 
     if move == "change_color":
         node = random.randrange(no_nodes)
-        for i, part in enumerate(tmp_partition):
+        for i, part in enumerate(potential_partition):
             if node in part:
                 current_color = i
                 break
-        tmp_partition[current_color].remove(node)
+        potential_partition[current_color].remove(node)
 
         new_color = current_color
         while new_color == current_color:
             new_color = random.randrange(no_colors)
-        tmp_partition[new_color].append(node)
+        potential_partition[new_color].append(node)
 
         # Relative probability of jumping back
         q_quotient = 1
 
 
     if move == "add_edge":
-        edges_giving_DAGs = get_addable_edges(tmp_edge_array)
-        k_old = len(edges_giving_DAGs[0])  # Number of edges that can be added
+        k_old = len(edges_giving_DAGs)  # Number of edges that can be added
 
-        if k_old == 0:
-            print("Could not add edge to graph")
-            q_quotient = 1
-        else:
-            index = random.randrange(k_old)
-            tmp_edge_array[edges_giving_DAGs[0][index], edges_giving_DAGs[1][index]] = 1
+        edge = random.choice(edges_giving_DAGs)
+        potential_edge_array[edge] = 1
 
-            # Relative probability of jumping back
-            q_quotient = k_old / (m+1)
+        # Relative probability of jumping back
+        q_quotient = k_old / (m+1)
     
 
     if move == "remove_edge":
-        if m == 0:
-            print("Could not remove edge")
-            q_quotient = 1
-        else:
-            edges = np.nonzero(tmp_edge_array)
-            index = random.randrange(len(edges[0]))
-            tmp_edge_array[edges[0][index], edges[1][index]] = 0
+        edge = random.choice(edges_in_DAG)
+        potential_edge_array[edge] = 0
 
-            # Relative probability of jumping back
-            edges_giving_DAGs = get_addable_edges(tmp_edge_array)
-            k_new = len(edges_giving_DAGs[0])
+        # Relative probability of jumping back
+        new_edges_giving_DAGs = update_addable_edges_REMOVED(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
+        k_new = len(new_edges_giving_DAGs[1])
 
-            q_quotient = m / k_new
+        q_quotient = m / k_new
 
 
-    return tmp_edge_array, tmp_partition, q_quotient
+    # Metropolis hastings algorithm
+
+    potential_bic = score_DAG(samples, potential_edge_array, potential_partition)
+    old_bic = score_DAG(samples, old_edge_array, old_partition)
+
+    if random.random() <= (potential_bic / old_bic) * q_quotient: 
+        new_edge_array = potential_edge_array
+        new_partition = potential_partition
+        new_bic = potential_bic
+
+        if move == "change_color":
+            new_sorted_edges = sorted_edges
+        elif move == "add_edge":
+            new_sorted_edges = update_addable_edges_ADD(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
+        elif move == "remove_edge":
+            new_sorted_edges = new_edges_giving_DAGs
+    else:
+        new_edge_array = old_edge_array
+        new_partition = old_partition
+        new_bic = old_bic
+        new_sorted_edges = sorted_edges
 
 
-def get_addable_edges(edge_array):
+    return new_edge_array, new_partition, new_bic, new_sorted_edges
+
+
+def get_sorted_edges(edge_array):
   
     tmp_edge_array = edge_array.copy()
-    non_existing_edges = np.nonzero(tmp_edge_array == 0)
+    n = np.shape(tmp_edge_array)[0]
 
-    edges_giving_DAGs = [[],[]]
-    for i in range(len(non_existing_edges[0])):
-        if tmp_edge_array[non_existing_edges[1][i], non_existing_edges[0][i]] == 1:
-            continue
-        tmp_edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 1
-        G = nx.DiGraph(tmp_edge_array)
-        if nx.is_directed_acyclic_graph(G):
-            edges_giving_DAGs[0].append(non_existing_edges[0][i])
-            edges_giving_DAGs[1].append(non_existing_edges[1][i])
-        tmp_edge_array[non_existing_edges[0][i], non_existing_edges[1][i]] = 0
-
-    return edges_giving_DAGs
-
-def update_addable_edges(edge_array, edges_giving_DAGs, last_action, last_edge):
-    tmp_edge_array = edge_array.copy()
-
-    if last_action == None:
-         new_edges_giving_DAGs = edges_giving_DAGs.copy()
-
-
-    if last_action == "change_color":
-         new_edges_giving_DAGs = edges_giving_DAGs.copy()
-
-
-    if last_action == "add_edge":
-        new_edges_giving_DAGs = [[],[]]
-
-        for i in range(len(edges_giving_DAGs[0])):
-            start_node = edges_giving_DAGs[0][i]
-            end_node = edges_giving_DAGs[1][i]
-            if start_node == last_edge[0] or start_node == last_edge[1] or end_node == last_edge[0] or end_node == last_edge[1]:
-                tmp_edge_array[start_node, end_node] = 1
-                G = nx.DiGraph(tmp_edge_array)
-                if nx.is_directed_acyclic_graph(G):
-                    new_edges_giving_DAGs[0].append(start_node)
-                    new_edges_giving_DAGs[1].append(end_node)
-                tmp_edge_array[start_node, end_node] = 0
-            else:
-                new_edges_giving_DAGs[0].append(start_node)
-                new_edges_giving_DAGs[1].append(end_node)
-
-    if last_action == "remove_edge":
-        new_edges_giving_DAGs = edges_giving_DAGs.copy()
-        new_edges_giving_DAGs[0].append(last_edge[0])
-        new_edges_giving_DAGs[1].append(last_edge[1])
-
-        for i in range(np.shape(edge_array)[0]):
-            if tmp_edge_array[i, last_edge[0]] == 1:
+    edges_in_DAG = []
+    edges_giving_DAGs = []
+    edges_not_giving_DAGs = []
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            if tmp_edge_array[i, j] == 1:
+                edges_in_DAG.append((i,j))
                 continue
 
-            tmp_edge_array[i, last_edge[0]] = 1
+            tmp_edge_array[i, j] = 1
             G = nx.DiGraph(tmp_edge_array)
             if nx.is_directed_acyclic_graph(G):
-                new_edges_giving_DAGs[0].append(i)
-                new_edges_giving_DAGs[1].append(last_edge[0])
-            tmp_edge_array[start_node, end_node] = 0
+                edges_giving_DAGs.append((i,j))
+            else:
+                edges_not_giving_DAGs.append((i,j))
+            tmp_edge_array[i,j] = 0
 
+    return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
-    return new_edges_giving_DAGs
+def update_addable_edges_REMOVED(edge_array, edges_in, addable_edges, not_addable_edges, removed_edge):
+    
+    tmp_edge_array = edge_array.copy()
+
+    edges_in_DAG = edges_in.copy()
+    edges_in_DAG.remove(removed_edge)
+
+    edges_giving_DAGs = addable_edges.copy() + [removed_edge]
+    edges_not_giving_DAGs = []
+
+    for edge in not_addable_edges:
+        tmp_edge_array[edge] = 1
+        G = nx.DiGraph(tmp_edge_array)
+        if nx.is_directed_acyclic_graph(G):
+            edges_giving_DAGs.append(edge)
+        else:
+            edges_not_giving_DAGs.append(edge)
+        tmp_edge_array[edge] = 0
+
+    return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
+
+def update_addable_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edges, added_edge):
+
+    tmp_edge_array = edge_array.copy()
+
+    edges_in_DAG = edges_in.copy() + [added_edge]
+    edges_giving_DAGs = []
+    edges_not_giving_DAGs = not_addable_edges.copy()
+
+    for edge in addable_edges:
+        if edge == added_edge:
+            continue
+
+        tmp_edge_array[edge] = 1
+        G = nx.DiGraph(tmp_edge_array)
+        if nx.is_directed_acyclic_graph(G):
+            edges_giving_DAGs.append(edge)
+        else:
+            edges_not_giving_DAGs.append(edge)
+        tmp_edge_array[edge] = 0
+
+    return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
+
 
 
 def score_DAG(samples, edge_array, partition):
@@ -374,7 +408,7 @@ def main():
 
     current_edge_array = initial_edge_array.copy()
     current_partition = initial_partition.copy()
-
+    current_sorted_edges = get_sorted_edges(current_edge_array)
 
     best_edge_array = initial_edge_array.copy()
     best_partition = initial_partition.copy()
@@ -385,30 +419,17 @@ def main():
     t = time.perf_counter()
     for i in range(MCMC_iterations):
 
-        old_edge_array = current_edge_array.copy()
-        old_partition = current_partition.copy()
+        current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(current_edge_array, current_partition, samples, current_sorted_edges)
 
-        new_edge_array, new_partition, q_quotient = update_DAG(old_edge_array, old_partition)
-
-        new_bic = score_DAG(samples, new_edge_array, new_partition)
-        old_bic = score_DAG(samples, old_edge_array, old_partition)
-
-        if random.random() <= (new_bic / old_bic) * q_quotient: 
-            current_edge_array = new_edge_array
-            current_partition = new_partition
-        else:
-            current_edge_array = old_edge_array
-            current_partition = old_partition
-
-        if new_bic > best_bic:
-            best_edge_array = new_edge_array.copy()
-            best_partition = new_partition.copy()
-            best_bic = new_bic
+        if current_bic > best_bic:
+            best_edge_array = current_edge_array.copy()
+            best_partition = current_partition.copy()
+            best_bic = current_bic
             best_iter = i
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")
-    print(f"It tool {time.perf_counter()-t} seconds")
+    print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", best_bic)
     print("Found on iteration:", best_iter)
     print("SHD to real DAG was:", calc_SHD(best_edge_array, real_edge_array))

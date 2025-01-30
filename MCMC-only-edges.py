@@ -259,8 +259,8 @@ def calc_SHD(edge_array1, edge_array2):
 
 
 def main():
-    no_nodes = 6
-    no_colors = 3
+    no_nodes = 10
+    no_colors = 4
     edge_probability = 0.3
     sample_size = 1000
     MCMC_iterations = 10000
@@ -375,7 +375,7 @@ def main():
 
     print("MCMC given correct colors")
     print(f"Ran MCMC for {MCMC_iterations} iterations")
-    print(f"It tool {time.perf_counter()-t} seconds")
+    print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", best_bic)
     print("Found on iteration:", best_iter)
     print("SHD to real DAG was:", calc_SHD(best_edge_array, real_edge_array))

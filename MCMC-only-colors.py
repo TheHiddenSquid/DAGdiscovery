@@ -4,9 +4,11 @@ import networkx as nx
 import numpy as np
 import random
 from scipy import stats
+import ges
 import time
-
-# Conclusion: MCMC cannot find the correct coloring even with correct edges given. This tells is that BIC is not a good heuristic
+from MCMCfuncs import MCMC_iteration
+from MCMCfuncs import score_DAG
+from MCMCfuncs import get_sorted_edges
 
 def generate_colored_DAG(no_nodes, no_colors, edge_probability):
     
@@ -91,89 +93,9 @@ def generate_color_map(partition):
     return color_map
 
 
-def update_DAG(edge_array, partition):
-    tmp_edge_array = edge_array.copy()
-    tmp_partition = partition.copy()
 
-    no_nodes = np.shape(edge_array)[0]  # Number of current noded
-    no_colors = len(tmp_partition)      # Number of possible colors
-
-
-    move = "change_color"
-
-
-    if move == "change_color":
-        node = random.randrange(no_nodes)
-        for i, part in enumerate(tmp_partition):
-            if node in part:
-                current_color = i
-                break
-        tmp_partition[current_color].remove(node)
-
-        new_color = current_color
-        while new_color == current_color:
-            new_color = random.randrange(no_colors)
-        tmp_partition[new_color].append(node)
-
-        # Relative probability of jumping back
-        q_quotient = 1
-
-
-    return tmp_edge_array, tmp_partition, q_quotient
-
-
-
-def score_DAG(samples, edge_array, partition):
-    samples = np.transpose(samples)
-
-    n = sum(len(x) for x in partition)
-
-
-    # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((n,n), dtype="float")
-    for i in range(n):
-        parents = get_parents(i, edge_array)
-        ans = np.linalg.solve(np.matmul(samples[parents,:],np.transpose(samples[parents,:])), np.matmul(samples[parents,:],np.transpose(samples[i,:])))
-        edges_ML[parents, i] = ans
-
-
-    # Calculate ML-eval of the different color omegas
-    omegas_for_color = [None] * len(partition)
-
-    for i, part in enumerate(partition):
-        if len(part) == 0:
-            continue  
-        tot = 0
-        for node in part:
-            parents = get_parents(node, edge_array)
-            tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
-        omegas_for_color[i] = tot / (n * len(part))
-
-    omegas_ML = [None] * n
-    for i, part in enumerate(partition):
-        for node in part:
-            omegas_ML[node] = omegas_for_color[i]
-
-
-    # Calculate BIC
-    tot = 0
-    for i, part in enumerate(partition):
-        if len(part) == 0:
-            continue
-        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - np.log(n) * (1/n) * sum(len(get_parents(x, edge_array)) for x in part)
-    bic = tot / 2
-
-
-    return bic
-
-def get_parents(node, edge_array):
-    parents = []
-    n = np.shape(edge_array)[0]
-    for i in range(n):
-        if edge_array[i, node] == 1:
-            parents.append(i)
-    return parents
-
+def calc_SHD(edge_array1, edge_array2):
+    return np.sum(np.abs(edge_array1-edge_array2))
 
 def calc_partition_distance(partition1, partition2):
     pa1 = partition1.copy()
@@ -201,10 +123,10 @@ def main():
     edge_probability = 0.3
     sample_size = 1000
     MCMC_iterations = 10000
+  
 
     real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
-    samples = generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
 
     # Create plots
@@ -219,42 +141,34 @@ def main():
     plt.title("Real DAG")
 
 
-    # RUN MCMC
-    initial_edge_array = real_edge_array
-    initial_partition = generate_partition(no_nodes, no_nodes)
+    # GES estimate of graph
+    samples = generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+   
+    
 
-    current_edge_array = initial_edge_array.copy()
-    current_partition = initial_partition.copy()
+    # MCMC setup
 
 
-    best_edge_array = initial_edge_array.copy()
-    best_partition = initial_partition.copy()
-    best_bic = score_DAG(samples, initial_edge_array, initial_partition)
+    current_edge_array = real_edge_array.copy()
+    current_partition = generate_partition(no_nodes, no_nodes)
+    current_sorted_edges = get_sorted_edges(current_edge_array)
+
+
+    best_partition = current_partition.copy()
+    best_bic = score_DAG(samples, current_edge_array, current_partition)
     best_iter = 0
 
+    # RUN MCMC
 
     t = time.perf_counter()
     for i in range(MCMC_iterations):
 
-        old_edge_array = current_edge_array.copy()
-        old_partition = current_partition.copy()
+        current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(current_edge_array, current_partition, samples, current_sorted_edges, ["change_color"])
 
-        new_edge_array, new_partition, q_quotient = update_DAG(old_edge_array, old_partition)
-
-        new_bic = score_DAG(samples, new_edge_array, new_partition)
-        old_bic = score_DAG(samples, old_edge_array, old_partition)
-
-        if random.random() <= (new_bic / old_bic) * q_quotient: 
-            current_edge_array = new_edge_array
-            current_partition = new_partition
-        else:
-            current_edge_array = old_edge_array
-            current_partition = old_partition
-
-        if new_bic > best_bic:
-            best_edge_array = new_edge_array.copy()
-            best_partition = new_partition.copy()
-            best_bic = new_bic
+        if current_bic > best_bic:
+            best_edge_array = current_edge_array.copy()
+            best_partition = current_partition.copy()
+            best_bic = current_bic
             best_iter = i
 
 
@@ -266,6 +180,8 @@ def main():
     print("PHD to real coloring was:", calc_partition_distance(real_partition, best_partition))
     
     print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
+
+
 
 
     plt.axes(ax2)

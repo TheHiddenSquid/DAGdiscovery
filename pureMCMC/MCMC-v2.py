@@ -122,7 +122,7 @@ def main():
     np.random.seed(1)
     no_nodes = 6
     no_colors = 3
-    edge_probability = 0.3
+    edge_probability = 0.4
     sample_size = 1000
     MCMC_iterations = 10000
     start_with_GES_DAG = False
@@ -193,7 +193,6 @@ def main():
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
     
 
-    
 
     # RUN MCMC
 

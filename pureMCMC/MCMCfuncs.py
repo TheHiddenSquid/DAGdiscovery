@@ -117,8 +117,7 @@ def get_sorted_edges(edge_array):
                 continue
 
             tmp_edge_array[i, j] = 1
-            G = nx.DiGraph(tmp_edge_array)
-            if nx.is_directed_acyclic_graph(G):
+            if is_DAG(tmp_edge_array):
                 edges_giving_DAGs.append((i,j))
             else:
                 edges_not_giving_DAGs.append((i,j))
@@ -138,8 +137,7 @@ def update_sorted_edges_REMOVE(edge_array, edges_in, addable_edges, not_addable_
 
     for edge in not_addable_edges:
         tmp_edge_array[edge] = 1
-        G = nx.DiGraph(tmp_edge_array)
-        if nx.is_directed_acyclic_graph(G):
+        if is_DAG(tmp_edge_array):
             edges_giving_DAGs.append(edge)
         else:
             edges_not_giving_DAGs.append(edge)
@@ -160,8 +158,7 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
             continue
 
         tmp_edge_array[edge] = 1
-        G = nx.DiGraph(tmp_edge_array)
-        if nx.is_directed_acyclic_graph(G):
+        if is_DAG(tmp_edge_array):
             edges_giving_DAGs.append(edge)
         else:
             edges_not_giving_DAGs.append(edge)
@@ -170,15 +167,26 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
     return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
 
+def is_DAG(A):
+    numnodes = A.shape[0]
+    P = A
+    for _ in range(numnodes-1):
+        P = P @ A
+        if np.sum(P) == 0:
+            return True
+    return False
+
+
+
 
 #For DAG heuristic
 
 def score_DAG(samples, edge_array, partition):
     samples = np.transpose(samples)
 
-    num_nodes = sum(len(x) for x in partition)
+    num_nodes = samples.shape[0]
     num_samples = samples.shape[1]
-
+    
     # Calculate ML-eval of the different lambdas
     edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
     for i in range(num_nodes):
@@ -192,7 +200,7 @@ def score_DAG(samples, edge_array, partition):
 
     for i, part in enumerate(partition):
         if len(part) == 0:
-            continue  
+            continue
         tot = 0
         for node in part:
             parents = get_parents(node, edge_array)

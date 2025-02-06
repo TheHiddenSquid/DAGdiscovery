@@ -172,17 +172,18 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
 
 
 #For DAG heuristic
+
 def score_DAG(samples, edge_array, partition):
     samples = np.transpose(samples)
 
-    n = sum(len(x) for x in partition)
-
+    num_nodes = sum(len(x) for x in partition)
+    num_samples = samples.shape[1]
 
     # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((n,n), dtype="float")
-    for i in range(n):
+    edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
+    for i in range(num_nodes):
         parents = get_parents(i, edge_array)
-        ans = np.linalg.solve(np.matmul(samples[parents,:],np.transpose(samples[parents,:])), np.matmul(samples[parents,:],np.transpose(samples[i,:])))
+        ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
         edges_ML[parents, i] = ans
 
 
@@ -196,12 +197,7 @@ def score_DAG(samples, edge_array, partition):
         for node in part:
             parents = get_parents(node, edge_array)
             tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
-        omegas_for_color[i] = tot / (n * len(part))
-
-    omegas_ML = [None] * n
-    for i, part in enumerate(partition):
-        for node in part:
-            omegas_ML[node] = omegas_for_color[i]
+        omegas_for_color[i] = tot / (num_samples * len(part))
 
 
     # Calculate BIC
@@ -209,11 +205,12 @@ def score_DAG(samples, edge_array, partition):
     for i, part in enumerate(partition):
         if len(part) == 0:
             continue
-        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - np.log(n) * (1/n) * sum(len(get_parents(x, edge_array)) for x in part)
+        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(get_parents(x, edge_array)) for x in part)
     bic = tot / 2
 
 
     return bic
+
 
 def get_parents(node, edge_array):
     parents = []
@@ -223,3 +220,10 @@ def get_parents(node, edge_array):
             parents.append(i)
     return parents
 
+def main():
+    pass
+
+
+
+if __name__ == "__main__":
+    main()

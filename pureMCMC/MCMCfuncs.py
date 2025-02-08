@@ -67,8 +67,8 @@ def MCMC_iteration(edge_array, partition, samples, sorted_edges, possible_moves=
         potential_edge_array[edge] = 0
 
         # Relative probability of jumping back
-        new_edges_giving_DAGs = update_sorted_edges_REMOVE(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-        k_new = len(new_edges_giving_DAGs[1])
+        potential_sorted_edges = update_sorted_edges_REMOVE(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
+        k_new = len(potential_sorted_edges[1])
 
         q_quotient = m / k_new
 
@@ -88,7 +88,7 @@ def MCMC_iteration(edge_array, partition, samples, sorted_edges, possible_moves=
         elif move == "add_edge":
             new_sorted_edges = update_sorted_edges_ADD(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
         elif move == "remove_edge":
-            new_sorted_edges = new_edges_giving_DAGs
+            new_sorted_edges = potential_sorted_edges
     else:
         new_edge_array = old_edge_array
         new_partition = old_partition

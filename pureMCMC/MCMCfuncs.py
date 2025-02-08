@@ -169,13 +169,10 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
 
 def is_DAG(A):
     numnodes = A.shape[0]
-    P = A
-    for _ in range(numnodes-1):
-        P = P @ A
-        if np.sum(P) == 0:
-            return True
-    return False
-
+    P = np.linalg.matrix_power(A, numnodes-1)
+    if np.argmax(P) != 0:
+        return False
+    return not P[0,0]
 
 
 

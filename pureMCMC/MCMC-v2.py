@@ -120,7 +120,7 @@ def calc_partition_distance(partition1, partition2):
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 6
+    no_nodes = 7
     no_colors = 3
     edge_probability = 0.4
     sample_size = 1000

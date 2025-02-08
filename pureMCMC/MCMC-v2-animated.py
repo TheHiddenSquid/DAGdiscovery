@@ -121,7 +121,7 @@ def main():
     no_colors = 4
     edge_probability = 0.3
     sample_size = 1000
-    start_with_GES_DAG = False
+    start_with_GES_DAG = True
 
     real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")

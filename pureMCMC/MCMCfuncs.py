@@ -155,14 +155,15 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
         q_quotient = m / k_new
 
 
-    # Metropolis hastings algorithm
-
+    # Evaluate BIC of new graph
     if move == "change_color":
-        potential_bic = score_DAG(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, current_color]])
+        potential_bic = score_DAG_after_color(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, current_color]])
     else:
-        potential_bic = score_DAG(samples, potential_edge_array, potential_partition)
+        potential_bic = score_DAG_after_edge(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
 
-    
+
+
+    # Metropolis Hastings
     if random.random() <= (potential_bic[0] / old_bic[0]) * q_quotient:
         new_edge_array = potential_edge_array
         new_partition = potential_partition
@@ -263,51 +264,115 @@ def is_DAG(A):
 # For DAG heuristic
 # Speedup by NOT doing edges of only color was changed and vice versa
 
-def score_DAG(samples, edge_array, partition, last_change_data = None):
+
+def get_parents(node, edge_array):
+    parents = []
+    n = np.shape(edge_array)[0]
+    for i in range(n):
+        if edge_array[i, node] == 1:
+            parents.append(i)
+    return parents
+
+
+def score_DAG(samples, edge_array, partition):
     samples = np.transpose(samples)
 
     num_nodes = samples.shape[0]
     num_samples = samples.shape[1]
     
 
-    if last_change_data is None:
+    # Calculate ML-eval of the different lambdas
+    edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
+    for i in range(num_nodes):
+        parents = get_parents(i, edge_array)
+        ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
+        edges_ML[parents, i] = ans
 
-        # Calculate ML-eval of the different lambdas
-        edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
-        for i in range(num_nodes):
-            parents = get_parents(i, edge_array)
-            ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
-            edges_ML[parents, i] = ans
+        # Calculate ML-eval of the different color omegas
+    omegas_for_color = [None] * len(partition)
 
-         # Calculate ML-eval of the different color omegas
-        omegas_for_color = [None] * len(partition)
-
-        for i, part in enumerate(partition):
-            if len(part) == 0:
-                continue
-            tot = 0
-            for node in part:
-                parents = get_parents(node, edge_array)
-                tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
-            omegas_for_color[i] = tot / (num_samples * len(part))
+    for i, part in enumerate(partition):
+        if len(part) == 0:
+            continue
+        tot = 0
+        for node in part:
+            parents = get_parents(node, edge_array)
+            tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+        omegas_for_color[i] = tot / (num_samples * len(part))
 
 
-    else:
-        edges_ML = last_change_data[0]
+    # Calculate BIC
+    tot = 0
+    for i, part in enumerate(partition):
+        if len(part) == 0:
+            continue
+        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(get_parents(x, edge_array)) for x in part)
+    bic = tot / 2
 
-        omegas_for_color = last_change_data[1]
+
+    return [bic, edges_ML, omegas_for_color]
+
+def score_DAG_after_color(samples, edge_array, partition, last_change_data = None):
+    samples = np.transpose(samples)
+    num_samples = samples.shape[1]
+    
+
+    # Edge ML is the same
+    edges_ML = last_change_data[0]
+
+    # Node ML needs local update
+    omegas_for_color = last_change_data[1]
+    for i in last_change_data[2]:
+        part = partition[i]
+        if len(part) == 0:
+            omegas_for_color[i] = None
+            continue
+        tot = 0
+        for node in part:
+            parents = get_parents(node, edge_array)
+            tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+        omegas_for_color[i] = tot / (num_samples * len(part))
 
 
-        for i in last_change_data[2]:
-            part = partition[i]
-            if len(part) == 0:
-                omegas_for_color[i] = None
-                continue
-            tot = 0
-            for node in part:
-                parents = get_parents(node, edge_array)
-                tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
-            omegas_for_color[i] = tot / (num_samples * len(part))
+    # Calculate BIC
+    tot = 0
+    for i, part in enumerate(partition):
+        if len(part) == 0:
+            continue
+        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(get_parents(x, edge_array)) for x in part)
+    bic = tot / 2
+
+
+    return [bic, edges_ML, omegas_for_color]
+
+def score_DAG_after_edge(samples, edge_array, partition, last_change_data = None):
+    samples = np.transpose(samples)
+
+    num_samples = samples.shape[1]
+    
+
+    # Calculate ML-eval of the different lambdas
+    edges_ML = last_change_data[0]
+    node_with_new_parents = last_change_data[2]
+    parents = get_parents(node_with_new_parents, edge_array)
+    ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[node_with_new_parents,:]), rcond=None)[0]
+    edges_ML[parents, node_with_new_parents] = ans
+
+
+    # Calculate ML-eval of the different color omegas
+    omegas_for_color = last_change_data[1]
+
+    for i, part in enumerate(partition):
+        if node_with_new_parents in part:
+            current_color = i
+            break
+
+    part = partition[current_color]
+    tot = 0
+    for node in part:
+        parents = get_parents(node, edge_array)
+        tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+    omegas_for_color[current_color] = tot / (num_samples * len(part))
 
 
 
@@ -322,14 +387,10 @@ def score_DAG(samples, edge_array, partition, last_change_data = None):
 
     return [bic, edges_ML, omegas_for_color]
 
-def get_parents(node, edge_array):
-    parents = []
-    n = np.shape(edge_array)[0]
-    for i in range(n):
-        if edge_array[i, node] == 1:
-            parents.append(i)
-    return parents
 
+
+
+# Other useful funcs
 
 def generate_partition(no_nodes, no_colors):
     partition = [[] for _ in range(no_colors)]

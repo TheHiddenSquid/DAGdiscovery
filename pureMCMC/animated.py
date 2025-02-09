@@ -141,7 +141,7 @@ def main():
     # Setop for BIC plots
     global bics
     global cumsum
-    start_bic = score_DAG(samples, current_edge_array, current_partition)
+    start_bic = score_DAG(samples, current_edge_array, current_partition)[0]
     bics = [start_bic]
     cumsum = [start_bic]
 
@@ -175,7 +175,7 @@ def main():
         global SHDs
         global CHDs
 
-        bics.append(current_bic)
+        bics.append(current_bic[0])
         plt.axes(ax21)
         ax21.clear()
         plt.plot(range(len(bics)),bics)
@@ -185,7 +185,7 @@ def main():
 
         plt.axes(ax22)
         ax22.clear()
-        cumsum.append(cumsum[-1]+current_bic)
+        cumsum.append(cumsum[-1]+current_bic[0])
 
         plt.plot(range(len(bics)),[cumsum[i]/(i+1) for i in range(len(bics))])
         plt.xlabel("iterations")

@@ -86,7 +86,7 @@ def main():
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", iter)
     print("CHD to real DAG was:", calc_partition_distance(partition, real_partition))
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
+    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 
 
     plt.axes(ax2)

@@ -93,7 +93,7 @@ def main():
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", iter)
     print("SHD to real DAG was:", calc_SHD(edge_array, real_edge_array))
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
+    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 
 
     plt.axes(ax3)

@@ -56,7 +56,7 @@ def main():
     no_colors = 3
     edge_probability = 0.3
     sample_size = 1000
-    MCMC_iterations = 100_000
+    MCMC_iterations = 10_000
     start_with_GES_DAG = True
     no_chains = 3
 
@@ -152,21 +152,21 @@ def main():
         current_bic = initial_bic.copy()
         current_sorted_edges = get_sorted_edges(current_edge_array)
 
-        bics = [initial_bic]
-        cumsum = [initial_bic]
+        bics = [initial_bic[0]]
+        cumsum = [initial_bic[0]]
 
         for i in range(MCMC_iterations):
 
             current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
 
-            if current_bic > best_bic:
+            if current_bic[0] > best_bic:
                 best_edge_array = current_edge_array.copy()
                 best_partition = current_partition.copy()
-                best_bic = current_bic
+                best_bic = current_bic[0]
                 best_iter = j*MCMC_iterations+i
             
-            bics.append(current_bic)
-            cumsum.append(cumsum[-1]+current_bic)
+            bics.append(current_bic[0])
+            cumsum.append(cumsum[-1]+current_bic[0])
 
         chain_bics.append(bics)
         chain_cumsum.append(cumsum)
@@ -176,7 +176,7 @@ def main():
     print("Found DAG with BIC:", best_bic)
     print("Found on iteration:", best_iter)
     print("SHD to real DAG was:", calc_SHD(best_edge_array, real_edge_array))
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
+    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 
 
 

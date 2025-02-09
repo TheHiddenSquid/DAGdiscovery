@@ -1,6 +1,5 @@
 import random
 import numpy as np
-import networkx as nx
 import ges
 import copy
 from generateDAGs import generate_colored_DAG
@@ -63,8 +62,8 @@ def MCMC(samples, num_iters, move_list = None, start_from_GES = False, start_par
 
     # Space for best found DAG
     best_A = A.copy()
-    best_partition = partition.copy()
-    best_bic = bic
+    best_partition = copy.deepcopy(partition)
+    best_bic = bic[0]
     best_iter = 0
 
 
@@ -73,10 +72,10 @@ def MCMC(samples, num_iters, move_list = None, start_from_GES = False, start_par
 
         A, partition, bic, sorted_edges = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
 
-        if bic > best_bic:
+        if bic[0] > best_bic:
             best_A = A.copy()
             best_partition = partition.copy()
-            best_bic = bic
+            best_bic = bic[0]
             best_iter = i
 
     return best_A, best_partition, best_bic, best_iter
@@ -88,7 +87,7 @@ def MCMC(samples, num_iters, move_list = None, start_from_GES = False, start_par
 def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_moves=None):
     old_edge_array = edge_array.copy()
     old_partition = copy.deepcopy(partition)
-    old_bic = bic
+    old_bic = copy.deepcopy(bic)
 
 
     potential_edge_array = edge_array.copy()
@@ -158,9 +157,13 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
 
     # Metropolis hastings algorithm
 
-    potential_bic = score_DAG(samples, potential_edge_array, potential_partition)
+    if move == "change_color":
+        potential_bic = score_DAG(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, current_color]])
+    else:
+        potential_bic = score_DAG(samples, potential_edge_array, potential_partition)
+
     
-    if random.random() <= (potential_bic / old_bic) * q_quotient:
+    if random.random() <= (potential_bic[0] / old_bic[0]) * q_quotient:
         new_edge_array = potential_edge_array
         new_partition = potential_partition
         new_bic = potential_bic
@@ -260,31 +263,52 @@ def is_DAG(A):
 # For DAG heuristic
 # Speedup by NOT doing edges of only color was changed and vice versa
 
-def score_DAG(samples, edge_array, partition):
+def score_DAG(samples, edge_array, partition, last_change_data = None):
     samples = np.transpose(samples)
 
     num_nodes = samples.shape[0]
     num_samples = samples.shape[1]
     
-    # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
-    for i in range(num_nodes):
-        parents = get_parents(i, edge_array)
-        ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
-        edges_ML[parents, i] = ans
+
+    if last_change_data is None:
+
+        # Calculate ML-eval of the different lambdas
+        edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
+        for i in range(num_nodes):
+            parents = get_parents(i, edge_array)
+            ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
+            edges_ML[parents, i] = ans
+
+         # Calculate ML-eval of the different color omegas
+        omegas_for_color = [None] * len(partition)
+
+        for i, part in enumerate(partition):
+            if len(part) == 0:
+                continue
+            tot = 0
+            for node in part:
+                parents = get_parents(node, edge_array)
+                tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+            omegas_for_color[i] = tot / (num_samples * len(part))
 
 
-    # Calculate ML-eval of the different color omegas
-    omegas_for_color = [None] * len(partition)
+    else:
+        edges_ML = last_change_data[0]
 
-    for i, part in enumerate(partition):
-        if len(part) == 0:
-            continue
-        tot = 0
-        for node in part:
-            parents = get_parents(node, edge_array)
-            tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
-        omegas_for_color[i] = tot / (num_samples * len(part))
+        omegas_for_color = last_change_data[1]
+
+
+        for i in last_change_data[2]:
+            part = partition[i]
+            if len(part) == 0:
+                omegas_for_color[i] = None
+                continue
+            tot = 0
+            for node in part:
+                parents = get_parents(node, edge_array)
+                tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+            omegas_for_color[i] = tot / (num_samples * len(part))
+
 
 
     # Calculate BIC
@@ -296,7 +320,7 @@ def score_DAG(samples, edge_array, partition):
     bic = tot / 2
 
 
-    return bic
+    return [bic, edges_ML, omegas_for_color]
 
 def get_parents(node, edge_array):
     parents = []

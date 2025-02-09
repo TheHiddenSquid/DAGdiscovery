@@ -50,7 +50,9 @@ def calc_partition_distance(partition1, partition2):
 
 
 def main():
-    no_nodes = 5
+    random.seed(6)
+    np.random.seed(6)
+    no_nodes = 7
     no_colors = 3
     edge_probability = 0.4
     sample_size = 1000
@@ -93,8 +95,8 @@ def main():
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", iter)
     print("SHD to real DAG was:", calc_SHD(edge_array, real_edge_array))
-    print("The found DAG with correct coloring gives BIC:", score_DAG(samples, edge_array, real_partition))
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
+    print("The found DAG with correct coloring gives BIC:", score_DAG(samples, edge_array, real_partition)[0])
+    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 
 
     plt.axes(ax3)

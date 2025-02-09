@@ -192,10 +192,12 @@ def main():
     global current_edge_array
     global current_partition
     global current_sorted_edges
+    global current_bic
 
     current_edge_array = initial_edge_array.copy()
     current_partition = initial_partition.copy()
     current_sorted_edges = get_sorted_edges(current_edge_array)
+    current_bic = score_DAG(samples, current_edge_array, current_partition)
 
     plt.axes(ax12)
     G = nx.DiGraph(current_edge_array)
@@ -225,9 +227,10 @@ def main():
         global current_edge_array
         global current_partition
         global current_sorted_edges
+        global current_bic
         global samples
 
-        current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(current_edge_array, current_partition, samples, current_sorted_edges)
+        current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
         
         G = nx.DiGraph(current_edge_array)
         nx.draw_circular(G, node_color=generate_color_map(current_partition), with_labels=True)

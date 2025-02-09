@@ -7,7 +7,7 @@ from generateDAGs import generate_colored_DAG
 
 # Main MCMC function
 
-def MCMC(samples, num_iters, move_list = None, start_from_GES = False):
+def MCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None):
     num_nodes = samples.shape[1]
     
 
@@ -46,8 +46,14 @@ def MCMC(samples, num_iters, move_list = None, start_from_GES = False):
         # Fully random colored DAG
         partition, A, _ = generate_colored_DAG(num_nodes, num_nodes, 0.5)
         A = np.array(A != 0, dtype="int")
+        #partition = [[i] for i in range(num_nodes)]
     
 
+    if start_partition is not None:
+        partition = start_partition
+
+    if start_edge_array is not None:
+        A = start_edge_array
 
 
     # Setup for iters
@@ -98,13 +104,13 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
     if possible_moves == None:
         moves = [ "change_color", "add_edge", "remove_edge"]
     else:
-        moves = possible_moves
+        moves = possible_moves.copy()
 
-    if m == 0:
+    if m == 0 and "remove_edge" in moves:
         moves.remove("remove_edge")
         print("could not remove edge")
 
-    if len(edges_giving_DAGs) == 0:
+    if len(edges_giving_DAGs) == 0 and "add_edge" in moves:
         moves.remove("add_edge")
         print("could not add edge")
 

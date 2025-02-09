@@ -5,79 +5,13 @@ import numpy as np
 import random
 from scipy import stats
 import ges
-import time
 from MCMCfuncs import MCMC_iteration
 from MCMCfuncs import score_DAG
 from MCMCfuncs import get_sorted_edges
+from generateDAGs import generate_colored_DAG
+from generateDAGs import generate_sample
+from generateDAGs import generate_partition
 
-def generate_colored_DAG(no_nodes, no_colors, edge_probability):
-    
-    # Add edges and make sure it is a DAG
-    G = nx.DiGraph()
-    nodes = [*range(no_nodes)]
-    random.shuffle(nodes)
-
-    for node in nodes:
-        G.add_node(node)
-        others = [*range(no_nodes)]
-        others.remove(node)
-        random.shuffle(others)
-
-        for other in others:
-            if random.random() < edge_probability:
-                if random.random() < 0.5:
-                    G.add_edge(node, other)
-                    if not nx.is_directed_acyclic_graph(G):
-                        G.remove_edge(node, other)
-                else:
-                    G.add_edge(other, node)
-                    if not nx.is_directed_acyclic_graph(G):
-                        G.remove_edge(other, node)
-
-
-    # Create partition for colors
-    partition = generate_partition(no_nodes, no_colors)
-
-    # Generate lambda matrix
-    lambda_matrix = nx.adjacency_matrix(G).todense().astype("float64")
-    for i in range(no_nodes):
-        for j in range(no_nodes):
-            if lambda_matrix[i,j] == 1:
-                lambda_matrix[i,j] = random.uniform(-1,1)
-
-    # Generate omega matrix
-    choices = [random.random() for _ in range(no_colors)]
-    omega_matrix = [None] * no_nodes
-    for i, part in enumerate(partition):
-        for node in part:
-            omega_matrix[node] = choices[i]
-
-
-    return partition, lambda_matrix, omega_matrix
-
-def generate_sample(size, lambda_matrix, omega_matrix):
-    no_nodes = len(omega_matrix)
-
-    errors = np.zeros((no_nodes,size), dtype="float64")
-    for i, omega in enumerate(omega_matrix):
-        rv = stats.norm(scale = omega)
-        errors[i,:] = rv.rvs(size=size)
-
-    X = np.transpose(np.linalg.inv(np.identity(no_nodes) - lambda_matrix))
-    
-    sample = np.zeros((no_nodes,size), dtype="float64")
-    for i in range(size):
-        sample[:,i] = np.matmul(X, errors[:,i])
-    
-    return np.transpose(sample)
-
-
-def generate_partition(no_nodes, no_colors):
-    partition = [[] for _ in range(no_colors)]
-    for node in range(no_nodes):
-        color = random.randrange(no_colors)
-        partition[color].append(node)
-    return partition
 
 def generate_color_map(partition):
     if len(partition) > 10:
@@ -91,7 +25,6 @@ def generate_color_map(partition):
             color_map[node] = colors[i]
 
     return color_map
-
 
 
 def calc_SHD(edge_array1, edge_array2):
@@ -124,7 +57,7 @@ def main():
     no_colors = 3
     edge_probability = 0.3
     sample_size = 1000
-    MCMC_iterations = 100_000
+    MCMC_iterations = 50_000
     start_with_GES_DAG = True
     no_chains = 3
 
@@ -199,39 +132,39 @@ def main():
     # RUN MCMC
 
 
+
     chain_bics = []
     chain_cumsum = []
 
-    for j in range(no_chains):
-        
 
+    best_edge_array = None
+    best_partition = None
+    best_bic = -np.infty
+    best_iter = None
+
+
+    for j in range(no_chains):
         initial_partition, initial_edge_array, _ = generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
+        initial_bic = score_DAG(samples, initial_edge_array, initial_partition)
 
         current_edge_array = initial_edge_array.copy()
         current_partition = initial_partition.copy()
+        current_bic = initial_bic.copy()
         current_sorted_edges = get_sorted_edges(current_edge_array)
 
-        best_edge_array = initial_edge_array.copy()
-        best_partition = initial_partition.copy()
-        best_bic = score_DAG(samples, initial_edge_array, initial_partition)
-        best_iter = 0
-
-        start_bic = score_DAG(samples, current_edge_array, current_partition)
-        bics = [start_bic]
-        cumsum = [start_bic]
-
-
+        bics = [initial_bic]
+        cumsum = [initial_bic]
 
         for i in range(MCMC_iterations):
 
-            current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(current_edge_array, current_partition, samples, current_sorted_edges)
+            current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
 
             if current_bic > best_bic:
                 best_edge_array = current_edge_array.copy()
                 best_partition = current_partition.copy()
                 best_bic = current_bic
-                best_iter = i
+                best_iter = j*MCMC_iterations+i
             
             bics.append(current_bic)
             cumsum.append(cumsum[-1]+current_bic)
@@ -245,8 +178,15 @@ def main():
     G = nx.DiGraph(best_edge_array)
     nx.draw_circular(G, node_color=generate_color_map(best_partition), with_labels=True)
     plt.title("MCMC")
-
     plt.show()
+
+    print(f"Ran MCMC for {no_chains * MCMC_iterations} iterations")
+    print("Found DAG with BIC:", best_bic)
+    print("Found on iteration:", best_iter)
+    print("SHD to real DAG was:", calc_SHD(best_edge_array, real_edge_array))
+    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
+
+
 
     plt.subplot(1,2,1)
     for i in range(no_chains):

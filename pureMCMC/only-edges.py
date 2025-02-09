@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 import ges
 import time
+import random
 from MCMCfuncs import MCMC
 from MCMCfuncs import score_DAG
 from generateDAGs import generate_colored_DAG

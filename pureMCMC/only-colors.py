@@ -3,6 +3,7 @@ from scipy.optimize import linear_sum_assignment
 import networkx as nx
 import numpy as np
 import time
+import random
 from MCMCfuncs import MCMC
 from MCMCfuncs import score_DAG
 from generateDAGs import generate_colored_DAG

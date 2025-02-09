@@ -3,7 +3,6 @@ from scipy.optimize import linear_sum_assignment
 import networkx as nx
 import numpy as np
 import random
-from scipy import stats
 import ges
 from MCMCfuncs import MCMC_iteration
 from MCMCfuncs import score_DAG
@@ -57,7 +56,7 @@ def main():
     no_colors = 3
     edge_probability = 0.3
     sample_size = 1000
-    MCMC_iterations = 50_000
+    MCMC_iterations = 100_000
     start_with_GES_DAG = True
     no_chains = 3
 
@@ -173,19 +172,19 @@ def main():
         chain_cumsum.append(cumsum)
 
 
-
-    plt.axes(ax3)
-    G = nx.DiGraph(best_edge_array)
-    nx.draw_circular(G, node_color=generate_color_map(best_partition), with_labels=True)
-    plt.title("MCMC")
-    plt.show()
-
     print(f"Ran MCMC for {no_chains * MCMC_iterations} iterations")
     print("Found DAG with BIC:", best_bic)
     print("Found on iteration:", best_iter)
     print("SHD to real DAG was:", calc_SHD(best_edge_array, real_edge_array))
     print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition))
 
+
+
+    plt.axes(ax3)
+    G = nx.DiGraph(best_edge_array)
+    nx.draw_circular(G, node_color=generate_color_map(best_partition), with_labels=True)
+    plt.title("MCMC")
+    plt.show()
 
 
     plt.subplot(1,2,1)

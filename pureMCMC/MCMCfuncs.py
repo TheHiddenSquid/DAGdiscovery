@@ -80,7 +80,7 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
 
     return best_A, best_partition, best_bic, best_iter
 
-def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_moves=None):
+def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list = None):
     old_edge_array = edge_array.copy()
     old_partition = copy.deepcopy(partition)
     old_bic = copy.deepcopy(bic)
@@ -96,18 +96,18 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
     no_nodes = np.shape(edge_array)[0]      # Number of current noded
     no_colors = len(potential_partition)    # Number of possible colors
 
-    if possible_moves == None:
+    if move_list == None:
         moves = [ "change_color", "add_edge", "remove_edge"]
     else:
-        moves = possible_moves.copy()
+        moves = move_list.copy()
 
     if m == 0 and "remove_edge" in moves:
         moves.remove("remove_edge")
-        print("could not remove edge")
+
 
     if len(edges_giving_DAGs) == 0 and "add_edge" in moves:
         moves.remove("add_edge")
-        print("could not add edge")
+
 
     move = random.choice(moves)
 
@@ -278,7 +278,7 @@ def score_DAG(samples, edge_array, partition):
         ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
         edges_ML[parents, i] = ans
 
-        # Calculate ML-eval of the different color omegas
+    # Calculate ML-eval of the different color omegas
     omegas_for_color = [None] * len(partition)
 
     for i, part in enumerate(partition):

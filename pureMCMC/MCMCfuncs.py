@@ -6,7 +6,7 @@ from generateDAGs import generate_colored_DAG
 
 # Main MCMC function
 
-def MCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None):
+def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None):
     num_nodes = samples.shape[1]
     
 
@@ -80,10 +80,6 @@ def MCMC(samples, num_iters, move_list = None, start_from_GES = False, start_par
 
     return best_A, best_partition, best_bic, best_iter
 
-
-
-
-
 def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_moves=None):
     old_edge_array = edge_array.copy()
     old_partition = copy.deepcopy(partition)
@@ -132,6 +128,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
 
         # Relative probability of jumping back
         q_quotient = 1
+        potential_bic = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, current_color]])
 
 
     if move == "add_edge":
@@ -142,6 +139,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
 
         # Relative probability of jumping back
         q_quotient = k_old / (m+1)
+        potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
     
 
     if move == "remove_edge":
@@ -153,13 +151,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
         k_new = len(potential_sorted_edges[1])
 
         q_quotient = m / k_new
-
-
-    # Evaluate BIC of new graph
-    if move == "change_color":
-        potential_bic = score_DAG_after_color(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, current_color]])
-    else:
-        potential_bic = score_DAG_after_edge(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
+        potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
 
 
 
@@ -184,7 +176,16 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, possible_m
     return new_edge_array, new_partition, new_bic, new_sorted_edges
 
 
+
 # For edge lookups
+
+def is_DAG(A):
+    numnodes = A.shape[0]
+    P = np.linalg.matrix_power(A, numnodes-1)
+    if np.argmax(P) != 0:
+        return False
+    return not P[0,0]
+
 def get_sorted_edges(edge_array):
   
     tmp_edge_array = edge_array.copy()
@@ -252,18 +253,8 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
     return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
 
-def is_DAG(A):
-    numnodes = A.shape[0]
-    P = np.linalg.matrix_power(A, numnodes-1)
-    if np.argmax(P) != 0:
-        return False
-    return not P[0,0]
-
-
 
 # For DAG heuristic
-# Speedup by NOT doing edges of only color was changed and vice versa
-
 
 def get_parents(node, edge_array):
     parents = []
@@ -272,7 +263,6 @@ def get_parents(node, edge_array):
         if edge_array[i, node] == 1:
             parents.append(i)
     return parents
-
 
 def score_DAG(samples, edge_array, partition):
     samples = np.transpose(samples)
@@ -312,7 +302,7 @@ def score_DAG(samples, edge_array, partition):
 
     return [bic, edges_ML, omegas_for_color]
 
-def score_DAG_after_color(samples, edge_array, partition, last_change_data = None):
+def score_DAG_color_edit(samples, edge_array, partition, last_change_data = None):
     samples = np.transpose(samples)
     num_samples = samples.shape[1]
     
@@ -345,7 +335,7 @@ def score_DAG_after_color(samples, edge_array, partition, last_change_data = Non
 
     return [bic, edges_ML, omegas_for_color]
 
-def score_DAG_after_edge(samples, edge_array, partition, last_change_data = None):
+def score_DAG_edge_edit(samples, edge_array, partition, last_change_data = None):
     samples = np.transpose(samples)
 
     num_samples = samples.shape[1]
@@ -389,15 +379,14 @@ def score_DAG_after_edge(samples, edge_array, partition, last_change_data = None
 
 
 
-
 # Other useful funcs
-
 def generate_partition(no_nodes, no_colors):
     partition = [[] for _ in range(no_colors)]
     for node in range(no_nodes):
         color = random.randrange(no_colors)
         partition[color].append(node)
     return partition
+
 
 def main():
     pass

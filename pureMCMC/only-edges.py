@@ -5,7 +5,7 @@ import numpy as np
 import ges
 import time
 import random
-from MCMCfuncs import MCMC
+from MCMCfuncs import CausalMCMC
 from MCMCfuncs import score_DAG
 from generateDAGs import generate_colored_DAG
 from generateDAGs import generate_sample
@@ -84,7 +84,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, iter = MCMC(samples, MCMC_iterations, move_list = ["add_edge", "remove_edge"], start_from_GES = False, start_partition=real_partition)
+    edge_array, partition, bic, iter = CausalMCMC(samples, MCMC_iterations, move_list = ["add_edge", "remove_edge"], start_from_GES = False, start_partition=real_partition)
 
 
     print("MCMC given the correct colors")

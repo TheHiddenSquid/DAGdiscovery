@@ -56,7 +56,7 @@ def main():
     no_colors = 3
     edge_probability = 0.3
     sample_size = 1000
-    MCMC_iterations = 10_000
+    MCMC_iterations = 100_000
     start_with_GES_DAG = True
     no_chains = 3
 

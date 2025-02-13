@@ -50,13 +50,11 @@ def calc_partition_distance(partition1, partition2):
 
 
 def main():
-    random.seed(1)
-    np.random.seed(1)
     no_nodes = 7
     no_colors = 3
     edge_probability = 0.4
     sample_size = 1000
-    MCMC_iterations = 10_000
+    MCMC_iterations = 100_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
@@ -86,17 +84,14 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, iter = CausalMCMC(samples, MCMC_iterations, move_list = None, start_from_GES = False)
+    edge_array, partition, visits = CausalMCMC(samples, MCMC_iterations, mode = "freq")
 
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
-    print("Found DAG with BIC:", bic)
-    print("Found on iteration:", iter)
     print("SHD to real DAG was:", calc_SHD(edge_array, real_edge_array))
-    print("The found DAG with correct coloring gives BIC:", score_DAG(samples, edge_array, real_partition)[0])
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
+    print(f"it was visited {visits} of {MCMC_iterations} iterations")
 
 
     plt.axes(ax3)

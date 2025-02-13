@@ -2,11 +2,16 @@ import random
 import numpy as np
 import ges
 import copy
+from collections import defaultdict
 from generateDAGs import generate_colored_DAG
 
 # Main MCMC function
 
-def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None):
+def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None, mode = "score"):
+    if mode not in ["score", "freq"]:
+        raise ValueError("Mode not supported")
+    
+    
     num_nodes = samples.shape[1]
     
 
@@ -49,7 +54,7 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
     
 
     if start_partition is not None:
-        partition = start_partition
+        partition = copy.deepcopy(start_partition)
 
     if start_edge_array is not None:
         A = start_edge_array
@@ -60,25 +65,48 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
     bic = score_DAG(samples, A, partition)
 
 
-    # Space for best found DAG
-    best_A = A.copy()
-    best_partition = copy.deepcopy(partition)
-    best_bic = bic[0]
-    best_iter = 0
+    if mode == "score":
+        best_A = A.copy()
+        best_partition = copy.deepcopy(partition)
+        best_bic = bic[0]
+        best_iter = 0
 
+        # Run MCMC iters    
+        for i in range(num_iters):
+            A, partition, bic, sorted_edges = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
+            if bic[0] > best_bic:
+                best_A = A.copy()
+                best_partition = partition.copy()
+                best_bic = bic[0]
+                best_iter = i
 
-    # Run MCMC iters    
-    for i in range(num_iters):
+        return best_A, best_partition, best_bic, best_iter
+    
 
-        A, partition, bic, sorted_edges = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
+    if mode == "freq":
+        cashe = defaultdict(lambda: 0)
 
-        if bic[0] > best_bic:
-            best_A = A.copy()
-            best_partition = partition.copy()
-            best_bic = bic[0]
-            best_iter = i
+        # Run MCMC iters    
+        for i in range(num_iters):
 
-    return best_A, best_partition, best_bic, best_iter
+            A, partition, bic, sorted_edges = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
+
+            h1 = A.tobytes()
+            h2 = (tuple(x) for x in partition)
+            cashe[(h1,h2)] += 1
+
+        most_visited = max(cashe, key=cashe.get)
+        num = cashe.get(most_visited)
+
+        best_A = most_visited[0]
+        best_A = np.frombuffer(best_A, dtype="int")
+        best_A = np.reshape(best_A, (num_nodes,num_nodes))
+
+        best_color = [list(x) for x in most_visited[1]]
+
+        return best_A, best_color, num
+    
+
 
 def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list = None):
     old_edge_array = edge_array.copy()

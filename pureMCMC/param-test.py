@@ -58,7 +58,7 @@ def main():
     sample_size = 1000
     MCMC_iterations = 10_000
     start_with_GES_DAG = True
-    no_chains = 3
+
 
     real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
@@ -142,37 +142,27 @@ def main():
     best_iter = None
 
 
-    for j in range(no_chains):
-        initial_partition, initial_edge_array, _ = generate_colored_DAG(no_nodes, no_nodes, 0.5)
-        initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
-        initial_bic = score_DAG(samples, initial_edge_array, initial_partition)
 
-        current_edge_array = initial_edge_array.copy()
-        current_partition = initial_partition.copy()
-        current_bic = initial_bic.copy()
-        current_sorted_edges = get_sorted_edges(current_edge_array)
-
-        bics = [initial_bic[0]]
-        cumsum = [initial_bic[0]]
-
-        for i in range(MCMC_iterations):
-
-            current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
-
-            if current_bic[0] > best_bic:
-                best_edge_array = current_edge_array.copy()
-                best_partition = current_partition.copy()
-                best_bic = current_bic[0]
-                best_iter = j*MCMC_iterations+i
-            
-            bics.append(current_bic[0])
-            cumsum.append(cumsum[-1]+current_bic[0])
-
-        chain_bics.append(bics)
-        chain_cumsum.append(cumsum)
+    current_edge_array = initial_edge_array.copy()
+    current_partition = initial_partition.copy()
+    current_bic = score_DAG(samples, initial_edge_array, initial_partition)
+    current_sorted_edges = get_sorted_edges(current_edge_array)
 
 
-    print(f"Ran MCMC for {no_chains * MCMC_iterations} iterations")
+    for i in range(MCMC_iterations):
+
+        current_edge_array, current_partition, current_bic, current_sorted_edges = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
+
+        if current_bic[0] > best_bic:
+            best_edge_array = current_edge_array.copy()
+            best_partition = current_partition.copy()
+            best_bic = current_bic[0]
+            best_iter = i
+        
+
+
+
+    print(f"Ran MCMC for {MCMC_iterations} iterations")
     print("Found DAG with BIC:", best_bic)
     print("Found on iteration:", best_iter)
     print("SHD to real DAG was:", calc_SHD(best_edge_array, real_edge_array))
@@ -187,15 +177,6 @@ def main():
     plt.show()
 
 
-    plt.subplot(1,2,1)
-    for i in range(no_chains):
-        plt.plot(range(MCMC_iterations+1), chain_bics[i])
-
-    plt.subplot(1,2,2)
-    for i in range(no_chains):
-        plt.plot(range(len(chain_cumsum[i])),[chain_cumsum[i][j]/(j+1) for j in range(len(chain_cumsum[i]))])
-
-    plt.show()
 
     
 if __name__ == "__main__":

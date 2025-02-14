@@ -7,6 +7,22 @@ from generateDAGs import generate_colored_DAG
 
 # Main MCMC function
 
+def sort_partition(partition):
+    num_nodes = sum(len(x) for x in partition)
+    dones = [False] * num_nodes
+    sorted_partition = []
+    for i in range(num_nodes):
+        if dones[i] == True:
+            continue
+        for j, part in enumerate(partition):
+            part.sort()
+            if i in part:
+                sorted_partition.append(part)
+                for k in part:
+                    dones[k] = True
+    return sorted_partition
+
+
 def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None, mode = "score", debug = False):
 
     if mode not in ["score", "freq"]:
@@ -99,7 +115,8 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
             A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
 
             h1 = A.tobytes()
-            h2 = tuple(tuple(x) for x in partition)
+            h2 = tuple(tuple(x) for x in sort_partition(partition))
+
             cashe[(h1,h2)] += 1
             fails += fail
 
@@ -110,12 +127,12 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
         best_A = np.frombuffer(best_A, dtype="int")
         best_A = np.reshape(best_A, (num_nodes,num_nodes))
 
-        best_color = [list(x) for x in most_visited[1]]
+        best_partition = [list(x) for x in most_visited[1]]
 
         if debug: 
-            return best_A, best_color, num_visits, fails
+            return best_A, best_partition, num_visits, fails
         else:
-            return best_A, best_color, num_visits
+            return best_A, best_partition, num_visits
     
 
 

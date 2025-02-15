@@ -7,9 +7,9 @@ import utils
 
 # Main MCMC function
 
-def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None, mode = "score", debug = False):
+def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_list = None, move_weights = None, start_edge_array = None, start_partition = None, debug = False):
 
-    if mode not in ["score", "freq"]:
+    if mode not in ["bic", "freq"]:
         raise ValueError("Mode not supported")
     
     
@@ -66,43 +66,43 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
     bic = score_DAG(samples, A, partition)
 
 
-    if mode == "score":
+    if mode == "bic":
         best_A = A.copy()
         best_partition = copy.deepcopy(partition)
         best_bic = bic[0]
         best_iter = 0
-        fails = 0
+        num_fails = 0
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
+            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list, move_weights)
             if bic[0] > best_bic:
                 best_A = A.copy()
                 best_partition = utils.sorted_partition(partition)
                 best_bic = bic[0]
                 best_iter = i
-            fails += fail
+            num_fails += fail
 
         if debug: 
-            return best_A, best_partition, best_bic, best_iter, fails
+            return best_A, best_partition, best_bic, best_iter, num_fails
         else:
             return best_A, best_partition, best_bic
     
 
     if mode == "freq":
         cashe = defaultdict(lambda: 0)
-        fails = 0
+        num_fails = 0
 
         # Run MCMC iters    
         for i in range(num_iters):
 
-            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
+            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list, move_weights)
 
             h1 = A.tobytes()
             h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
 
             cashe[(h1,h2)] += 1
-            fails += fail
+            num_fails += fail
 
         most_visited = max(cashe, key=cashe.get)
         num_visits = cashe[most_visited]
@@ -114,13 +114,13 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
         best_partition = [list(x) for x in most_visited[1]]
 
         if debug: 
-            return best_A, best_partition, num_visits, fails
+            return best_A, best_partition, num_visits, num_fails
         else:
             return best_A, best_partition, num_visits
     
 
 
-def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list = None, s = 1/3, t = 1/3):
+def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list = None, move_weights = None):
     old_edge_array = edge_array.copy()
     old_partition = copy.deepcopy(partition)
     old_bic = copy.deepcopy(bic)
@@ -132,10 +132,15 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
     
     edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
 
-    m = len(edges_in_DAG)                   # Number of current edges
-    no_nodes = np.shape(edge_array)[0]      # Number of current noded
-    no_colors = len(potential_partition)    # Number of possible colors
+    num_edges = len(edges_in_DAG)            # Number of current edges
+    num_nodes = np.shape(edge_array)[0]      # Number of current noded
+    num_colors = len(potential_partition)    # Number of possible colors
 
+
+    if move_weights is not None:
+        s,t = move_weights
+    else:
+        s,t = 1/3,1/3
 
     if s<=0 or t<=0 or s+t>=1:
         raise ValueError("invalid probabilities")
@@ -153,7 +158,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
         if moves == ["add_edge", "remove_edge"]:
             weights = [s,t]
 
-    if m == 0 and "remove_edge" in moves:
+    if num_edges == 0 and "remove_edge" in moves:
         moves.remove("remove_edge")
         del weights[-2]
         
@@ -168,7 +173,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
 
     if move == "change_color":
-        node = random.randrange(no_nodes)
+        node = random.randrange(num_nodes)
         for i, part in enumerate(potential_partition):
             if node in part:
                 current_color = i
@@ -177,7 +182,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
         new_color = current_color
         while new_color == current_color:
-            new_color = random.randrange(no_colors)
+            new_color = random.randrange(num_colors)
         potential_partition[new_color].append(node)
 
         # Relative probability of jumping back
@@ -192,7 +197,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
         potential_edge_array[edge] = 1
 
         # Relative probability of jumping back
-        q_quotient = (t*k_old) / (s*(m+1))
+        q_quotient = (t*k_old) / (s*(num_edges+1))
         potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
     
 
@@ -204,7 +209,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
         potential_sorted_edges = update_sorted_edges_REMOVE(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
         k_new = len(potential_sorted_edges[1])
 
-        q_quotient = (s*m) / (t*k_new)
+        q_quotient = (s*num_edges) / (t*k_new)
         potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
 
 
@@ -235,8 +240,6 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
 
 # For edge lookups
-
-
 
 def get_sorted_edges(edge_array):
   
@@ -346,7 +349,7 @@ def score_DAG(samples, edge_array, partition):
 
     return [bic, edges_ML, omegas_for_color]
 
-def score_DAG_color_edit(samples, edge_array, partition, last_change_data = None):
+def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     samples = np.transpose(samples)
     num_samples = samples.shape[1]
     
@@ -379,7 +382,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data = None
 
     return [bic, edges_ML, omegas_for_color]
 
-def score_DAG_edge_edit(samples, edge_array, partition, last_change_data = None):
+def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     samples = np.transpose(samples)
 
     num_samples = samples.shape[1]

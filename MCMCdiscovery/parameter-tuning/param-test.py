@@ -19,21 +19,16 @@ def test3d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
 
         random.seed(2)
         np.random.seed(2)
-        no_nodes = 6
-        no_colors = 3
+        num_nodes = 6
+        num_colors = 3
         edge_probability = 0.3
 
-        real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
-        real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
+        _, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, edge_probability)
         samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
         
         # RUN MCMC
         # Fully random colored DAG
-        initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
-        initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
-        
-
         z = np.zeros((resolution+1,resolution+1))
     
         for i in range(1,resolution):
@@ -44,18 +39,7 @@ def test3d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
                 t = j/resolution
                 print(s,t)
                 
-                fails = 0
-                current_edge_array = initial_edge_array.copy()
-                current_partition = initial_partition.copy()
-                current_bic = MCMCfuncs.score_DAG(samples, initial_edge_array, initial_partition)
-                current_sorted_edges = MCMCfuncs.get_sorted_edges(current_edge_array)
-
-                for _ in range(MCMCiterations):
-
-                    current_edge_array, current_partition, current_bic, current_sorted_edges, fail = MCMCfuncs.MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, s=s, t=t)
-                    
-                    fails += fail
-
+                _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[s,t], debug=True)
                 z[i,j] = fails/MCMCiterations
 
         if savefile is not None:
@@ -105,16 +89,11 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
         edge_probability = 0.3
 
         real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
-        real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
         samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
         
         # RUN MCMC
         # Fully random colored DAG
-        initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
-        initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
-        
-        x = np.zeros((resolution))
         y = np.zeros((resolution))
 
         for i in range(1,resolution):
@@ -122,18 +101,8 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
             np.random.seed(2)
             s = i/(2*resolution)
             print(s)
-            fails = 0
-            current_edge_array = initial_edge_array.copy()
-            current_partition = initial_partition.copy()
-            current_bic = MCMCfuncs.score_DAG(samples, initial_edge_array, initial_partition)
-            current_sorted_edges = MCMCfuncs.get_sorted_edges(current_edge_array)
 
-            for _ in range(MCMCiterations):
-
-                current_edge_array, current_partition, current_bic, current_sorted_edges, fail = MCMCfuncs.MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, s=s, t=s)
-                
-                fails += fail
-            x[i] = s
+            _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[s,s], debug=True)
             y[i] = fails/MCMCiterations
             
         if savefile is not None:

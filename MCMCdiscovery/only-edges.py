@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-from scipy.optimize import linear_sum_assignment
 import networkx as nx
 import numpy as np
 import ges
@@ -9,44 +8,8 @@ from MCMCfuncs import CausalMCMC
 from MCMCfuncs import score_DAG
 from generateDAGs import generate_colored_DAG
 from generateDAGs import generate_sample
+import utils
 
-
-
-def generate_color_map(partition):
-    if len(partition) > 10:
-        raise ValueError("Too many colors needed for color map generation")
-    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink"]
-    length = sum([len(x) for x in partition])
-    color_map = [None] * length
-
-    for i, part in enumerate(partition):
-        for node in part:
-            color_map[node] = colors[i]
-
-    return color_map
-
-
-def calc_SHD(edge_array1, edge_array2):
-    return np.sum(np.abs(edge_array1-edge_array2))
-
-def calc_partition_distance(partition1, partition2):
-    pa1 = partition1.copy()
-    pa2 = partition2.copy()
-
-    n = sum(len(x) for x in pa1)
-    parts = max(len(pa1), len(pa2))
-
-    pa1 += [[]]*(parts - len(pa1))
-    pa2 += [[]]*(parts - len(pa2))
-
-    cost_matrix = np.zeros((parts, parts), dtype="int")
-    for i in range(parts):
-        for j in range(parts):
-            cost_matrix[i,j] = len(set(pa1[i]).intersection(set(pa2[j])))
-            
-    row_ind, col_ind = linear_sum_assignment(cost_matrix, maximize=True)
-
-    return n - cost_matrix[row_ind, col_ind].sum()
 
 
 def main():
@@ -68,7 +31,7 @@ def main():
     # Plot data generating graph
     plt.axes(ax1)
     G = nx.DiGraph(real_edge_array)
-    nx.draw_circular(G, node_color=generate_color_map(real_partition), with_labels=True)
+    nx.draw_circular(G, node_color=utils.generate_color_map(real_partition), with_labels=True)
     plt.title("Real DAG")
 
 
@@ -92,13 +55,13 @@ def main():
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", iter)
-    print("SHD to real DAG was:", calc_SHD(edge_array, real_edge_array))
+    print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
     print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 
 
     plt.axes(ax3)
     G = nx.DiGraph(edge_array)
-    nx.draw_circular(G, node_color=generate_color_map(partition), with_labels=True)
+    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
     plt.title("MCMC")
 
 

@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from scipy.optimize import linear_sum_assignment
 import networkx as nx
 import numpy as np
 import ges
@@ -9,43 +8,7 @@ from MCMCfuncs import score_DAG
 from MCMCfuncs import get_sorted_edges
 from generateDAGs import generate_colored_DAG
 from generateDAGs import generate_sample
-from generateDAGs import generate_partition
-
-
-def generate_color_map(partition):
-    if len(partition) > 10:
-        raise ValueError("Too many colors needed for color map generation")
-    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink"]
-    length = sum([len(x) for x in partition])
-    color_map = [None] * length
-
-    for i, part in enumerate(partition):
-        for node in part:
-            color_map[node] = colors[i]
-
-    return color_map
-
-def calc_SHD(edge_array1, edge_array2):
-    return np.sum(np.abs(edge_array1-edge_array2))
-
-def calc_partition_distance(partition1, partition2):
-    pa1 = partition1.copy()
-    pa2 = partition2.copy()
-
-    n = sum(len(x) for x in pa1)
-    parts = max(len(pa1), len(pa2))
-
-    pa1 += [[]]*(parts - len(pa1))
-    pa2 += [[]]*(parts - len(pa2))
-
-    cost_matrix = np.zeros((parts, parts), dtype="int")
-    for i in range(parts):
-        for j in range(parts):
-            cost_matrix[i,j] = len(set(pa1[i]).intersection(set(pa2[j])))
-            
-    row_ind, col_ind = linear_sum_assignment(cost_matrix, maximize=True)
-
-    return n - cost_matrix[row_ind, col_ind].sum()
+import utils
 
 
 def main():
@@ -70,7 +33,7 @@ def main():
     # Plot data generating graph
     plt.axes(ax11)
     G = nx.DiGraph(real_lambda_matrix)
-    nx.draw_circular(G, node_color=generate_color_map(real_partition), with_labels=True)
+    nx.draw_circular(G, node_color=utils.generate_color_map(real_partition), with_labels=True)
     plt.title("Real DAG")
 
 
@@ -111,7 +74,7 @@ def main():
 
 
         # Initial coloring guess
-        initial_partition = generate_partition(no_nodes, no_nodes)
+        initial_partition = utils.generate_random_partition(no_nodes, no_nodes)
 
     else:
         # Start with random DAG
@@ -133,7 +96,7 @@ def main():
 
     plt.axes(ax12)
     G = nx.DiGraph(current_edge_array)
-    nx.draw_circular(G, node_color=generate_color_map(current_partition), with_labels=True)
+    nx.draw_circular(G, node_color=utils.generate_color_map(current_partition), with_labels=True)
     plt.title("MCMC")
 
 
@@ -145,10 +108,10 @@ def main():
     cumsum = [start_bic]
 
     global SHDs
-    SHDs = [calc_SHD(current_edge_array, real_edge_array)]
+    SHDs = [utils.calc_SHD(current_edge_array, real_edge_array)]
 
     global CHDs
-    CHDs = [calc_partition_distance(current_partition, real_partition)]
+    CHDs = [utils.calc_CHD(current_partition, real_partition)]
 
 
 
@@ -165,7 +128,7 @@ def main():
         current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
         
         G = nx.DiGraph(current_edge_array)
-        nx.draw_circular(G, node_color=generate_color_map(current_partition), with_labels=True)
+        nx.draw_circular(G, node_color=utils.generate_color_map(current_partition), with_labels=True)
         plt.title("MCMC")
 
         # Update bic graphics
@@ -195,7 +158,7 @@ def main():
         # SHD for each iteration
         plt.axes(ax31)
         ax31.clear()
-        SHDs.append(calc_SHD(real_edge_array, current_edge_array))
+        SHDs.append(utils.calc_SHD(real_edge_array, current_edge_array))
 
         plt.plot(range(len(SHDs)), SHDs)
         plt.xlabel("iterations")
@@ -215,7 +178,7 @@ def main():
         # CHD for each iteration
         plt.axes(ax41)
         ax41.clear()
-        CHDs.append(calc_partition_distance(real_partition, current_partition))
+        CHDs.append(utils.calc_CHD(real_partition, current_partition))
 
         plt.plot(range(len(CHDs)), CHDs)
         plt.xlabel("iterations")

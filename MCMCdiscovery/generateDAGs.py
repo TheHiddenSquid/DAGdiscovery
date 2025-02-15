@@ -2,7 +2,7 @@ import numpy as np
 import networkx as nx
 import random
 from scipy import stats
-
+import utils
 
 
 def generate_colored_DAG(no_nodes, no_colors, edge_probability):
@@ -31,7 +31,7 @@ def generate_colored_DAG(no_nodes, no_colors, edge_probability):
 
 
     # Create partition for colors
-    partition = generate_partition(no_nodes, no_colors)
+    partition = utils.generate_random_partition(no_nodes, no_colors)
 
     # Generate lambda matrix
     lambda_matrix = nx.adjacency_matrix(G).todense().astype("float64")
@@ -49,14 +49,6 @@ def generate_colored_DAG(no_nodes, no_colors, edge_probability):
 
 
     return partition, lambda_matrix, omega_matrix
-
-
-def generate_partition(no_nodes, no_colors):
-    partition = [[] for _ in range(no_colors)]
-    for node in range(no_nodes):
-        color = random.randrange(no_colors)
-        partition[color].append(node)
-    return partition
 
 
 def generate_sample(size, lambda_matrix, omega_matrix):

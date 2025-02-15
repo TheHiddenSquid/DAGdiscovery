@@ -4,24 +4,9 @@ import ges
 import copy
 from collections import defaultdict
 from generateDAGs import generate_colored_DAG
+import utils
 
 # Main MCMC function
-
-def sort_partition(partition):
-    num_nodes = sum(len(x) for x in partition)
-    dones = [False] * num_nodes
-    sorted_partition = []
-    for i in range(num_nodes):
-        if dones[i] == True:
-            continue
-        for j, part in enumerate(partition):
-            part.sort()
-            if i in part:
-                sorted_partition.append(part)
-                for k in part:
-                    dones[k] = True
-    return sorted_partition
-
 
 def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, start_partition = None, start_edge_array = None, mode = "score", debug = False):
 
@@ -48,13 +33,13 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
         for edge in double:
             new_edges = A.copy()
             new_edges[edge[0], edge[1]] = 1
-            if is_DAG(new_edges):
+            if utils.is_DAG(new_edges):
                 A = new_edges
                 continue
 
             new_edges = A.copy()
             new_edges[edge[1], edge[0]] = 1
-            if is_DAG(new_edges):
+            if utils.is_DAG(new_edges):
                 A = new_edges
                 continue
 
@@ -67,7 +52,7 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
         # Fully random colored DAG
         partition, A, _ = generate_colored_DAG(num_nodes, num_nodes, 0.5)
         A = np.array(A != 0, dtype="int")
-        #partition = [[i] for i in range(num_nodes)]
+        partition = [[i] for i in range(num_nodes)]
     
 
     if start_partition is not None:
@@ -94,7 +79,7 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
             A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
             if bic[0] > best_bic:
                 best_A = A.copy()
-                best_partition = partition.copy()
+                best_partition = utils.sorted_partition(partition)
                 best_bic = bic[0]
                 best_iter = i
             fails += fail
@@ -115,7 +100,7 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
             A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list)
 
             h1 = A.tobytes()
-            h2 = tuple(tuple(x) for x in sort_partition(partition))
+            h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
 
             cashe[(h1,h2)] += 1
             fails += fail
@@ -252,12 +237,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
 # For edge lookups
 
-def is_DAG(A):
-    numnodes = A.shape[0]
-    P = np.linalg.matrix_power(A, numnodes-1)
-    if np.argmax(P) != 0:
-        return False
-    return not P[0,0]
+
 
 def get_sorted_edges(edge_array):
   
@@ -276,7 +256,7 @@ def get_sorted_edges(edge_array):
                 continue
 
             tmp_edge_array[i, j] = 1
-            if is_DAG(tmp_edge_array):
+            if utils.is_DAG(tmp_edge_array):
                 edges_giving_DAGs.append((i,j))
             else:
                 edges_not_giving_DAGs.append((i,j))
@@ -296,7 +276,7 @@ def update_sorted_edges_REMOVE(edge_array, edges_in, addable_edges, not_addable_
 
     for edge in not_addable_edges:
         tmp_edge_array[edge] = 1
-        if is_DAG(tmp_edge_array):
+        if utils.is_DAG(tmp_edge_array):
             edges_giving_DAGs.append(edge)
         else:
             edges_not_giving_DAGs.append(edge)
@@ -317,7 +297,7 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
             continue
 
         tmp_edge_array[edge] = 1
-        if is_DAG(tmp_edge_array):
+        if utils.is_DAG(tmp_edge_array):
             edges_giving_DAGs.append(edge)
         else:
             edges_not_giving_DAGs.append(edge)
@@ -329,14 +309,6 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
 
 # For DAG heuristic
 
-def get_parents(node, edge_array):
-    parents = []
-    n = np.shape(edge_array)[0]
-    for i in range(n):
-        if edge_array[i, node] == 1:
-            parents.append(i)
-    return parents
-
 def score_DAG(samples, edge_array, partition):
     samples = np.transpose(samples)
 
@@ -347,7 +319,7 @@ def score_DAG(samples, edge_array, partition):
     # Calculate ML-eval of the different lambdas
     edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
     for i in range(num_nodes):
-        parents = get_parents(i, edge_array)
+        parents = utils.get_parents(i, edge_array)
         ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
         edges_ML[parents, i] = ans
 
@@ -359,7 +331,7 @@ def score_DAG(samples, edge_array, partition):
             continue
         tot = 0
         for node in part:
-            parents = get_parents(node, edge_array)
+            parents = utils.get_parents(node, edge_array)
             tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
         omegas_for_color[i] = tot / (num_samples * len(part))
 
@@ -369,7 +341,7 @@ def score_DAG(samples, edge_array, partition):
     for i, part in enumerate(partition):
         if len(part) == 0:
             continue
-        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(get_parents(x, edge_array)) for x in part)
+        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
     bic = tot / 2
 
 
@@ -392,7 +364,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data = None
             continue
         tot = 0
         for node in part:
-            parents = get_parents(node, edge_array)
+            parents = utils.get_parents(node, edge_array)
             tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
         omegas_for_color[i] = tot / (num_samples * len(part))
 
@@ -402,7 +374,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data = None
     for i, part in enumerate(partition):
         if len(part) == 0:
             continue
-        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(get_parents(x, edge_array)) for x in part)
+        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
     bic = tot / 2
 
 
@@ -417,7 +389,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data = None)
     # Calculate ML-eval of the different lambdas
     edges_ML = last_change_data[0]
     node_with_new_parents = last_change_data[2]
-    parents = get_parents(node_with_new_parents, edge_array)
+    parents = utils.get_parents(node_with_new_parents, edge_array)
     ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[node_with_new_parents,:]), rcond=None)[0]
     edges_ML[parents, node_with_new_parents] = ans
 
@@ -433,7 +405,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data = None)
     part = partition[current_color]
     tot = 0
     for node in part:
-        parents = get_parents(node, edge_array)
+        parents = utils.get_parents(node, edge_array)
         tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
     omegas_for_color[current_color] = tot / (num_samples * len(part))
 
@@ -444,21 +416,13 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data = None)
     for i, part in enumerate(partition):
         if len(part) == 0:
             continue
-        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(get_parents(x, edge_array)) for x in part)
+        tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
     bic = tot / 2
 
 
     return [bic, edges_ML, omegas_for_color]
 
 
-
-# Other useful funcs
-def generate_partition(no_nodes, no_colors):
-    partition = [[] for _ in range(no_colors)]
-    for node in range(no_nodes):
-        color = random.randrange(no_colors)
-        partition[color].append(node)
-    return partition
 
 
 def main():

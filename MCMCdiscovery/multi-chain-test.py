@@ -6,8 +6,6 @@ import ges
 from MCMCfuncs import MCMC_iteration
 from MCMCfuncs import score_DAG
 from MCMCfuncs import get_sorted_edges
-from generateDAGs import generate_colored_DAG
-from generateDAGs import generate_sample
 import utils
 
 
@@ -19,11 +17,11 @@ def main():
     no_colors = 3
     edge_probability = 0.3
     sample_size = 1000
-    MCMC_iterations = 10_000
+    MCMC_iterations = 50_000
     start_with_GES_DAG = True
     no_chains = 3
 
-    real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
 
@@ -40,7 +38,7 @@ def main():
 
 
     # GES estimate of graph
-    samples = generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+    samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
     res = ges.fit_bic(data=samples)
     GES_edge_array = res[0]
 
@@ -85,7 +83,7 @@ def main():
 
     else:
         # Fully random colored DAG
-        initial_partition, initial_edge_array, _ = generate_colored_DAG(no_nodes, no_nodes, 0.5)
+        initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
     
 
@@ -106,7 +104,7 @@ def main():
 
 
     for j in range(no_chains):
-        initial_partition, initial_edge_array, _ = generate_colored_DAG(no_nodes, no_nodes, 0.5)
+        initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
         initial_bic = score_DAG(samples, initial_edge_array, initial_partition)
 

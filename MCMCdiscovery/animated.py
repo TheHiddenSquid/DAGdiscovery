@@ -6,8 +6,6 @@ import ges
 from MCMCfuncs import MCMC_iteration
 from MCMCfuncs import score_DAG
 from MCMCfuncs import get_sorted_edges
-from generateDAGs import generate_colored_DAG
-from generateDAGs import generate_sample
 import utils
 
 
@@ -18,11 +16,11 @@ def main():
     sample_size = 1000
     start_with_GES_DAG = True
 
-    real_partition, real_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
     global samples
-    samples = generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+    samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
 
     # Create plots
@@ -78,7 +76,7 @@ def main():
 
     else:
         # Start with random DAG
-        initial_partition, initial_lambda_matrix, real_omega_matrix = generate_colored_DAG(no_nodes, no_nodes, 0.5)
+        initial_partition, initial_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_lambda_matrix != 0, dtype="int")
     
 

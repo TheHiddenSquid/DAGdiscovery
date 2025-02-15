@@ -4,7 +4,7 @@ import random
 import sys
 sys.path.append("../")
 import MCMCfuncs
-import generateDAGs as DAGs
+import utils
 from matplotlib import cm
 import matplotlib.colors as colors
 import pickle
@@ -23,14 +23,14 @@ def test3d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
         no_colors = 3
         edge_probability = 0.3
 
-        real_partition, real_lambda_matrix, real_omega_matrix = DAGs.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+        real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
         real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
-        samples = DAGs.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+        samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
         
         # RUN MCMC
         # Fully random colored DAG
-        initial_partition, initial_edge_array, _ = DAGs.generate_colored_DAG(no_nodes, no_nodes, 0.5)
+        initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
         
 
@@ -104,14 +104,14 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
         no_colors = 3
         edge_probability = 0.3
 
-        real_partition, real_lambda_matrix, real_omega_matrix = DAGs.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+        real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
         real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
-        samples = DAGs.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+        samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
         
         # RUN MCMC
         # Fully random colored DAG
-        initial_partition, initial_edge_array, _ = DAGs.generate_colored_DAG(no_nodes, no_nodes, 0.5)
+        initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
         
         x = np.zeros((resolution))
@@ -152,10 +152,10 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
 def main():
     load1 = "plot3d40res.pkl"
     load2 = "plot2d50res.pkl"
-    save = "lastsave.pkl"
-    test3d(resolution = 10, sample_size = 1000, MCMCiterations = 1000, savefile=save, loadfile=load1)
+    save = None #"lastsave.pkl"
+    test3d(resolution = 10, sample_size = 1000, MCMCiterations = 1000, savefile=save, loadfile=None)
 
-    test2d(resolution = 50, sample_size = 1000, MCMCiterations = 10_000, savefile=save, loadfile=load2)
+    test2d(resolution = 50, sample_size = 1000, MCMCiterations = 1000, savefile=save, loadfile=None)
 
 
     

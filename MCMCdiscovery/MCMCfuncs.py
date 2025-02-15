@@ -3,7 +3,6 @@ import numpy as np
 import ges
 import copy
 from collections import defaultdict
-from generateDAGs import generate_colored_DAG
 import utils
 
 # Main MCMC function
@@ -50,7 +49,7 @@ def CausalMCMC(samples, num_iters, move_list = None, start_from_GES = False, sta
 
     else:
         # Fully random colored DAG
-        partition, A, _ = generate_colored_DAG(num_nodes, num_nodes, 0.5)
+        partition, A, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
         A = np.array(A != 0, dtype="int")
         partition = [[i] for i in range(num_nodes)]
     

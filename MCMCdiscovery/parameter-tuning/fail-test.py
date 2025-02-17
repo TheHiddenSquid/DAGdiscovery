@@ -1,25 +1,22 @@
 import matplotlib.pyplot as plt
+from matplotlib import cm
+import matplotlib.colors as colors
+import pickle
 import numpy as np
 import random
 import sys
 sys.path.append("../")
 import MCMCfuncs
 import utils
-from matplotlib import cm
-import matplotlib.colors as colors
-import pickle
-
 
 def test3d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None):
     if loadfile is not None:
         with open(loadfile, "rb") as f:
             z = pickle.load(f)    
     else:
-
-
         random.seed(2)
         np.random.seed(2)
-        num_nodes = 6
+        num_nodes = 20
         num_colors = 3
         edge_probability = 0.3
 
@@ -88,13 +85,13 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
         no_colors = 3
         edge_probability = 0.3
 
-        real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+        _, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
         samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
         
         # RUN MCMC
         # Fully random colored DAG
-        y = np.zeros((resolution))
+        y = np.zeros((resolution+1))
 
         for i in range(1,resolution):
             random.seed(2)
@@ -110,24 +107,30 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
                 pickle.dump(y, f)
 
     # Plot data
-    x = np.linspace(0,0.5,resolution)
-    plt.plot(x,y)
+    end = y.shape[0]
+
+    x = np.linspace(0,0.5,end)
+
+    plt.plot(x[1:end-1],y[1:end-1])
     plt.xlabel("P(add)=P(remove)")
     plt.ylabel("fails")
-    plt.title("One parameter variation")
+    plt.title("6 nodes")
     plt.show()
 
 
 def main():
-    load1 = "plot3d40res.pkl"
-    load2 = "plot2d50res.pkl"
-    save = None #"lastsave.pkl"
-    test3d(resolution = 10, sample_size = 1000, MCMCiterations = 1000, savefile=save, loadfile=None)
 
-    test2d(resolution = 50, sample_size = 1000, MCMCiterations = 1000, savefile=save, loadfile=None)
+    save = "lastsave.pkl"
+    #save = "2d6nodes.pkl"
 
+    load1 = "3d6nodes.pkl"
+    load2 = "3d20nodes.pkl"
+    #test3d(resolution = 20, sample_size = 1000, MCMCiterations = 1_000, savefile=save, loadfile=load2)
 
-    
+    load1 = "2d6nodes.pkl"
+    load2 = "2d20nodes.pkl"
+    test2d(resolution = 50, sample_size = 1000, MCMCiterations = 10_000, savefile=save, loadfile=None)
+
 
     
 if __name__ == "__main__":

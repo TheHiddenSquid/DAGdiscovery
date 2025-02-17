@@ -75,7 +75,7 @@ def generate_sample(size, lambda_matrix, omega_matrix):
 
 def is_DAG(A):
     numnodes = A.shape[0]
-    P = np.linalg.matrix_power(A, numnodes-1)
+    P = np.linalg.matrix_power(A, numnodes)
     if np.argmax(P) != 0:
         return False
     return not P[0,0]

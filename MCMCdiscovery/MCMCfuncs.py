@@ -215,7 +215,8 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
 
     # Metropolis Hastings
-    if random.random() <= (potential_bic[0] / old_bic[0]) * q_quotient:
+    #old  random.random() <= (potential_bic[0] / old_bic[0]) * q_quotient
+    if random.random() <= np.exp(potential_bic[0] - old_bic[0]) * q_quotient:
         new_edge_array = potential_edge_array
         new_partition = potential_partition
         new_bic = potential_bic

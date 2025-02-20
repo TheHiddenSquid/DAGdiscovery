@@ -11,16 +11,16 @@ import utils
 
 
 def main():
-    random.seed(2)
-    np.random.seed(2)
+    random.seed(1)
+    np.random.seed(1)
     no_colors = 3
     edge_probability = 0.3
     sample_size = 1000
     
 
     # RUN MCM
-    num_chains = 2
-    max_num_nodes = 12
+    num_chains = 5
+    max_num_nodes = 11
     
 
     required_iters = []

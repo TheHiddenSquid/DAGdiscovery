@@ -37,10 +37,12 @@ def get_all_3node_DAGs(color = False):
 def main():
 
     # General setup
+    random.seed(1)
+    np.random.seed(1)
     num_nodes = 3
     num_colors = 3
     edge_probability = 0.5
-    sample_size = 1000
+    sample_size = 100
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, edge_probability)
     real_A = np.array(real_lambda_matrix != 0, dtype="int")
@@ -112,8 +114,14 @@ def main():
 
     G = nx.Graph(edge_array)
     pos = nx.spring_layout(G, seed=1)
-
     
+
+    allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), p)[0] for (x,p) in dags]
+    node_size = [40*np.exp(x) for x in allbics]
+
+    print("postive:", sum(1 for x in allbics if x>0))
+    print("negative:", sum(1 for x in allbics if x<0))
+    print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 125")
 
 
     # setup for MCMC
@@ -137,7 +145,7 @@ def main():
         colors = ["lightsteelblue" for _ in range(125)]
         colors[dags.index((real_A.tobytes(),real_tuple_P))] = "gold"
         colors[dags.index((current_edge_array.tobytes(), current_partition_tuple))] = "lightpink"
-        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True)
+        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size)
 
 
     def update(frame):
@@ -157,7 +165,7 @@ def main():
         colors = ["lightsteelblue" for _ in range(125)]
         colors[dags.index((real_A.tobytes(), real_tuple_P))] = "gold"
         colors[dags.index((A.tobytes(),current_partition_tuple))] = "lightpink"
-        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True)
+        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size)
 
 
     ani = animation.FuncAnimation(fig=fig, func=update, frames=10_000, interval=10, init_func=init)

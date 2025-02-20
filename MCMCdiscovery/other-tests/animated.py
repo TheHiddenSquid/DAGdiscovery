@@ -3,6 +3,8 @@ import matplotlib.animation as animation
 import networkx as nx
 import numpy as np
 import ges
+import sys
+sys.path.append("../")
 from MCMCfuncs import MCMC_iteration
 from MCMCfuncs import score_DAG
 from MCMCfuncs import get_sorted_edges
@@ -14,7 +16,7 @@ def main():
     no_colors = 4
     edge_probability = 0.3
     sample_size = 1000
-    start_with_GES_DAG = True
+    start_with_GES_DAG = False
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")

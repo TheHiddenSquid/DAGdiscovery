@@ -4,11 +4,18 @@ import numpy as np
 import random
 import ges
 import time
+import sys
+sys.path.append("../")
 from MCMCfuncs import CausalMCMC
+from MCMCfuncs import score_DAG
 import utils
 
+
+
 def main():
-    no_nodes = 3
+    random.seed(1)
+    np.random.seed(1)
+    no_nodes = 5
     no_colors = 3
     edge_probability = 0.4
     sample_size = 1000
@@ -42,13 +49,16 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, visits = CausalMCMC(samples, MCMC_iterations, mode = "freq")
+    edge_array, partition, bic, return_iter, fails = CausalMCMC(samples, MCMC_iterations, move_list = None, start_from_GES = False, debug=True)
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
+    print("Found DAG with BIC:", bic)
+    print("Found on iteration:", return_iter)
     print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
-    print(f"it was visited {visits} of {MCMC_iterations} iterations")
+    print("The found DAG with correct coloring gives BIC:", score_DAG(samples, edge_array, real_partition)[0])
+    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 
 
     plt.axes(ax3)

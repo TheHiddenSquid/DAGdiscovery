@@ -81,7 +81,7 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
     else:
         random.seed(2)
         np.random.seed(2)
-        no_nodes = 6
+        no_nodes = 20
         no_colors = 3
         edge_probability = 0.3
 
@@ -114,7 +114,7 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
     plt.plot(x[1:end-1],y[1:end-1])
     plt.xlabel("P(add)=P(remove)")
     plt.ylabel("fails")
-    plt.title("6 nodes")
+    plt.title("20 nodes")
     plt.show()
 
 
@@ -125,11 +125,11 @@ def main():
 
     load1 = "3d6nodes.pkl"
     load2 = "3d20nodes.pkl"
-    #test3d(resolution = 20, sample_size = 1000, MCMCiterations = 1_000, savefile=save, loadfile=load2)
+    test3d(resolution = 20, sample_size = 1000, MCMCiterations = 10_000, savefile=save, loadfile=load2)
 
     load1 = "2d6nodes.pkl"
     load2 = "2d20nodes.pkl"
-    test2d(resolution = 50, sample_size = 1000, MCMCiterations = 10_000, savefile=save, loadfile=None)
+    test2d(resolution = 50, sample_size = 1000, MCMCiterations = 10_000, savefile=save, loadfile=load2)
 
 
     

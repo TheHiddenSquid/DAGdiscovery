@@ -36,7 +36,8 @@ def get_all_3node_DAGs(color = False):
 
 
 def main():
-
+    random.seed(1)
+    np.random.seed(1)
     # General setup
     num_nodes = 3
     num_colors = 3
@@ -74,9 +75,11 @@ def main():
 
     G = nx.Graph(edge_array)
     pos = nx.spectral_layout(G)
-
+    node_size = [100+100*score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
     
-
+    allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
+    print(sorted(allbics))
+    print(real_A)
 
     # setup for MCMC
   
@@ -98,7 +101,7 @@ def main():
         colors = ["lightsteelblue" for _ in range(25)]
         colors[dags.index(real_A.tobytes())] = "gold"
         colors[0] = "lightpink"
-        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True)
+        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size)
 
 
     def update(frame):
@@ -117,10 +120,10 @@ def main():
         colors = ["lightsteelblue" for _ in range(25)]
         colors[dags.index(real_A.tobytes())] = "gold"
         colors[dags.index(A.tobytes())] = "lightpink"
-        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True)
+        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size)
 
 
-    ani = animation.FuncAnimation(fig=fig, func=update, frames=1000, interval=10, init_func=init)
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=10_000, interval=10, init_func=init)
     plt.show()
 
     

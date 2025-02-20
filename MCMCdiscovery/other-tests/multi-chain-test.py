@@ -3,6 +3,8 @@ import networkx as nx
 import numpy as np
 import random
 import ges
+import sys
+sys.path.append("../")
 from MCMCfuncs import MCMC_iteration
 from MCMCfuncs import score_DAG
 from MCMCfuncs import get_sorted_edges

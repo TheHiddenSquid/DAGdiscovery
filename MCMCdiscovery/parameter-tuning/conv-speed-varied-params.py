@@ -22,7 +22,7 @@ def main():
 
     # RUN MCM
     MCMC_iterations = 10_000
-    num_chains = 5
+    num_chains = 100
     param_list = [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.45, 0.499]
     num_params = len(param_list)
     

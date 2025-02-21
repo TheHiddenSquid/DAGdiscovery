@@ -75,7 +75,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list, move_weights)
+            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list, move_weights)    
             if bic[0] > best_bic:
                 best_A = A.copy()
                 best_partition = utils.sorted_partition(partition)
@@ -215,7 +215,6 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
 
     # Metropolis Hastings
-    #old  random.random() <= (potential_bic[0] / old_bic[0]) * q_quotient
     if random.random() <= np.exp(potential_bic[0] - old_bic[0]) * q_quotient:
         new_edge_array = potential_edge_array
         new_partition = potential_partition
@@ -317,7 +316,7 @@ def score_DAG(samples, edge_array, partition):
 
     num_nodes = samples.shape[0]
     num_samples = samples.shape[1]
-    
+    num_colors = sum(1 for x in partition if len(x)>0)
 
     # Calculate ML-eval of the different lambdas
     edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
@@ -345,7 +344,9 @@ def score_DAG(samples, edge_array, partition):
         if len(part) == 0:
             continue
         tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
+    
     bic = tot / 2
+    bic = bic - np.log(num_samples)/(num_samples*2) * num_colors
 
 
     return [bic, edges_ML, omegas_for_color]
@@ -353,6 +354,7 @@ def score_DAG(samples, edge_array, partition):
 def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     samples = np.transpose(samples)
     num_samples = samples.shape[1]
+    num_colors = sum(1 for x in partition if len(x)>0)
     
 
     # Edge ML is the same
@@ -379,6 +381,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
             continue
         tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
     bic = tot / 2
+    bic = bic - np.log(num_samples)/(num_samples*2) * num_colors
 
 
     return [bic, edges_ML, omegas_for_color]
@@ -387,6 +390,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     samples = np.transpose(samples)
 
     num_samples = samples.shape[1]
+    num_colors = sum(1 for x in partition if len(x)>0)
     
 
     # Calculate ML-eval of the different lambdas
@@ -421,6 +425,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
             continue
         tot += -len(part) * np.log(omegas_for_color[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
     bic = tot / 2
+    bic = bic - np.log(num_samples)/(num_samples*2) * num_colors
 
 
     return [bic, edges_ML, omegas_for_color]

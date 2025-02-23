@@ -36,8 +36,8 @@ def get_all_3node_DAGs(color = False):
 
 
 def main():
-    random.seed(1)
-    np.random.seed(1)
+    random.seed(8)
+    np.random.seed(8)
     # General setup
     num_nodes = 3
     num_colors = 3
@@ -75,11 +75,13 @@ def main():
 
     G = nx.Graph(edge_array)
     pos = nx.spectral_layout(G)
-    node_size = [100+100*score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
     
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
-    print(sorted(allbics))
-    print(real_A)
+    node_size = [20*np.exp(2*x) for x in allbics]
+
+    
+   
+
 
     # setup for MCMC
   

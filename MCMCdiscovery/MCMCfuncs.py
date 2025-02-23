@@ -123,9 +123,10 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
 def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list = None, move_weights = None):
     
     edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
-    num_edges = len(edges_in_DAG)            # Number of current edges
+    num_edges = len(edges_in_DAG)
 
 
+    # All this should moved to CausalMCMC functions
     if move_weights is not None:
         p_add, p_remove = move_weights
     else:
@@ -156,7 +157,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
         del weights[-1]
 
     move = random.choices(moves, weights = weights, k = 1)[0]
-        
+    # END    
 
     
     

@@ -19,8 +19,8 @@ def main():
     
 
     # RUN MCM
-    num_chains = 5
-    max_num_nodes = 10  # 11 takse time
+    num_chains = 1
+    max_num_nodes = 11  # 11 takse time
     
 
     required_iters = []

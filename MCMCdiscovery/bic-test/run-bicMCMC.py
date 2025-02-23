@@ -16,10 +16,10 @@ def main():
     random.seed(1)
     np.random.seed(1)
     no_nodes = 5
-    no_colors = 3
+    no_colors = 2
     edge_probability = 0.4
     sample_size = 1000
-    MCMC_iterations = 10_000
+    MCMC_iterations = 200_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")

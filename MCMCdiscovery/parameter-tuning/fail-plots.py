@@ -35,8 +35,7 @@ def test3d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
                 np.random.seed(2)
                 t = j/resolution
                 print(s,t)
-                
-                _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[s,t], debug=True)
+                _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[1-s-t,s,t], debug=True)
                 z[i,j] = fails/MCMCiterations
 
         if savefile is not None:
@@ -98,8 +97,7 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
             np.random.seed(2)
             s = i/(2*resolution)
             print(s)
-
-            _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[s,s], debug=True)
+            _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[1-2*s,s,s], debug=True)
             y[i] = fails/MCMCiterations
             
         if savefile is not None:

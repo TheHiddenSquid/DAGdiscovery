@@ -49,7 +49,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, return_iter, fails = CausalMCMC(samples, MCMC_iterations, move_list = None, start_from_GES = False, debug=True)
+    edge_array, partition, bic, return_iter, fails = CausalMCMC(samples, MCMC_iterations, start_from_GES = False, debug=True)
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")

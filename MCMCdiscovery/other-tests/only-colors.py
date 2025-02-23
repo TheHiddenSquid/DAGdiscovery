@@ -14,7 +14,7 @@ import utils
 
 def main():
     no_nodes = 8
-    no_colors = 10
+    no_colors = 8
     edge_probability = 0.4
     sample_size = 1000
     MCMC_iterations = 100_000

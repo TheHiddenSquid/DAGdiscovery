@@ -14,7 +14,7 @@ import utils
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 6
+    no_nodes = 20
     no_colors = 3
     edge_probability = 0.3
     sample_size = 1000
@@ -22,7 +22,7 @@ def main():
 
     # RUN MCM
     MCMC_iterations = 10_000
-    num_chains = 100
+    num_chains = 10
     param_list = [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.45, 0.499]
     num_params = len(param_list)
     
@@ -77,7 +77,7 @@ def main():
     plt.ylabel("true bic - best bic")
     plt.ylim((0,20))
     plt.legend()
-    plt.title("Convergence speed (6 nodes)")
+    plt.title("Convergence speed (20 nodes)")
     plt.show()
 
     

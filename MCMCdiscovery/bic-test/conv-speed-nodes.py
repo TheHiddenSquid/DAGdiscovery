@@ -37,7 +37,6 @@ def main():
 
             real_bic = score_DAG(samples, real_edge_array, real_partition)[0]
 
-
             current_partition, current_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
             current_edge_array = np.array(current_edge_array != 0, dtype="int")
             current_bic = score_DAG(samples, current_edge_array, current_partition)

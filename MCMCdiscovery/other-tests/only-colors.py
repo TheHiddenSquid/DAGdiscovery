@@ -13,11 +13,11 @@ import utils
 
 
 def main():
-    no_nodes = 7
-    no_colors = 3
+    no_nodes = 8
+    no_colors = 10
     edge_probability = 0.4
     sample_size = 1000
-    MCMC_iterations = 1000
+    MCMC_iterations = 100_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
@@ -41,14 +41,14 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, iter, fails = CausalMCMC(samples, MCMC_iterations, move_list = ["change_color"], start_edge_array = real_edge_array, debug=True)
+    edge_array, partition, bic, iters, _ = CausalMCMC(samples, MCMC_iterations, move_list = ["change_color"], start_edge_array = real_edge_array, debug=True)
 
 
     print("MCMC given the correct edges")
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
-    print("Found on iteration:", iter)
+    print("Found on iteration:", iters)
     print("CHD to real DAG was:", utils.calc_CHD(partition, real_partition))
     print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 

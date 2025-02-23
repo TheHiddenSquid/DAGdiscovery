@@ -17,14 +17,13 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
     if move_weights is not None:
         p_change_color, p_add, p_remove = move_weights
         if p_change_color<0 or p_add<0 or p_remove<0 or sum(move_weights)>1:
-            raise ValueError("invalid probabilities")
+            raise ValueError("invalid move probabilities")
     else:
         move_weights = [1/3]*3
 
     
-    
+    # Other settings
     num_nodes = samples.shape[1]
-
 
     if start_from_GES:
         GES_edge_array = ges.fit_bic(data=samples)[0]
@@ -136,24 +135,21 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
     num_edges = len(edges_in_DAG)
 
 
-    # All this should moved to CausalMCMC functions
+    # Check what moves are possible and pick one at random
     p_change_color, p_add, p_remove = move_weights
-    
     
     moves = [ "change_color", "add_edge", "remove_edge"]
     weights = move_weights.copy()
 
     if num_edges == 0:
-        weights[2] = 0
-        
+        weights[2] = 0  
     elif len(edges_giving_DAGs) == 0 :
         weights[1] = 0
 
     move = random.choices(moves, weights = weights, k = 1)[0]
-    # END    
 
-    
-    
+
+    # Create new colored DAG based on move
     if move == "change_color":
         potential_edge_array = edge_array
         potential_partition, old_color, new_color = change_partiton(partition)
@@ -189,8 +185,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
         potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
 
 
-
-    # Metropolis Hastings
+    # Metropolis Hastings to accept or reject new DAG
     if random.random() <= np.exp(potential_bic[0] - bic[0]) * q_quotient:
         new_edge_array = potential_edge_array
         new_partition = potential_partition

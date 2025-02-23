@@ -160,7 +160,6 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
         potential_bic = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [node, old_color, 
         new_color]])
 
-
     if move == "add_edge":
         potential_partition = partition
 
@@ -171,9 +170,8 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
         potential_edge_array[edge] = 1
 
         q_quotient = (p_remove*old_num_addible_edges) / (p_add*(num_edges+1))
-        potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
+        potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge])
     
-
     if move == "remove_edge":
         potential_partition = partition
 
@@ -185,7 +183,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
         new_num_addible_edges = len(potential_sorted_edges[1])
 
         q_quotient = (p_add*num_edges) / (p_remove*new_num_addible_edges)
-        potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
+        potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge])
 
 
     # Metropolis Hastings to accept or reject new colored DAG
@@ -409,25 +407,32 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
 
     # Calculate ML-eval of the different lambdas
     edges_ML = last_change_data[0].copy()
-    node_with_new_parents = last_change_data[2]
-    parents = utils.get_parents(node_with_new_parents, edge_array)
-    ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[node_with_new_parents,:]), rcond=None)[0]
-    edges_ML[parents, node_with_new_parents] = ans
+    
+    new_parent, new_child = last_change_data[2]
+    new_parents = utils.get_parents(new_child, edge_array)
+    old_parents = new_parents.copy()
+    try:
+        old_parents.remove(new_parent)
+    except ValueError:
+        old_parents.append(new_parent)
+
+    old_ml = edges_ML[old_parents, new_child]
+    new_ml = np.linalg.lstsq(np.transpose(samples[new_parents,:]), np.transpose(samples[new_child,:]), rcond=None)[0]
+    edges_ML[new_parents, new_child] = new_ml
 
 
     # Calculate ML-eval of the different color omegas
     omegas_for_color = last_change_data[1].copy()
 
     for i, part in enumerate(partition):
-        if node_with_new_parents in part:
+        if new_child in part:
             current_color = i
             break
 
     part = partition[current_color]
-    tot = 0
-    for node in part:
-        parents = utils.get_parents(node, edge_array)
-        tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+    tot = omegas_for_color[current_color] * num_samples * len(part)
+    tot -= np.linalg.norm(samples[new_child,:]-np.matmul(np.transpose(old_ml), samples[old_parents,:]))**2
+    tot += np.linalg.norm(samples[new_child,:]-np.matmul(np.transpose(new_ml), samples[new_parents,:]))**2
     omegas_for_color[current_color] = tot / (num_samples * len(part))
 
 

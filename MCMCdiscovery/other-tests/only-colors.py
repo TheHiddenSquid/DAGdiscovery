@@ -41,7 +41,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, iters, _ = CausalMCMC(samples, MCMC_iterations, move_list = ["change_color"], start_edge_array = real_edge_array, debug=True)
+    edge_array, partition, bic, iters, _ = CausalMCMC(samples, MCMC_iterations, move_weights = [1,0,0], start_edge_array = real_edge_array, debug=True)
 
 
     print("MCMC given the correct edges")

@@ -154,10 +154,11 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
     # Create new colored DAG based on move
     if move == "change_color":
         potential_edge_array = edge_array
-        potential_partition, old_color, new_color = change_partiton(partition)
+        potential_partition, node, old_color, new_color = change_partiton(partition)
 
         q_quotient = 1
-        potential_bic = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, old_color]])
+        potential_bic = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [node, old_color, 
+        new_color]])
 
 
     if move == "add_edge":
@@ -238,7 +239,7 @@ def change_partiton(partition):
 
     new_color = random.choice(other_colors)
     changed_partition[new_color].append(node_to_change)
-    return changed_partition, old_color, new_color
+    return changed_partition, node_to_change, old_color, new_color
 
     
 
@@ -365,16 +366,26 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
 
     # Node ML needs local update
     omegas_for_color = last_change_data[1].copy()
-    for i in last_change_data[2]:
-        part = partition[i]
-        if len(part) == 0:
-            omegas_for_color[i] = None
-            continue
+    
+    node, old_color, new_color = last_change_data[2]
+
+    parents = utils.get_parents(node, edge_array)
+    node_ml_contribution = np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+
+    if len(partition[old_color]) == 0:
+        omegas_for_color[old_color] = None
+    else:
+        tot = omegas_for_color[old_color] * num_samples * (len(partition[old_color]) + 1)
+        tot -= node_ml_contribution
+        omegas_for_color[old_color] = tot / (num_samples * len(partition[old_color]))
+    
+    if len(partition[new_color]) == 1:
         tot = 0
-        for node in part:
-            parents = utils.get_parents(node, edge_array)
-            tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
-        omegas_for_color[i] = tot / (num_samples * len(part))
+    else:
+        tot = omegas_for_color[new_color] * num_samples * (len(partition[new_color]) - 1)
+    tot += node_ml_contribution
+    omegas_for_color[new_color] = tot / (num_samples * len(partition[new_color]))
+
 
 
     # Calculate BIC

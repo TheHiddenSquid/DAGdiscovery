@@ -37,12 +37,12 @@ def get_all_3node_DAGs(color = False):
 def main():
 
     # General setup
-    random.seed(1)
-    np.random.seed(1)
+    random.seed(3)
+    np.random.seed(3)
     num_nodes = 3
     num_colors = 3
     edge_probability = 0.5
-    sample_size = 100
+    sample_size = 1_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, edge_probability)
     real_A = np.array(real_lambda_matrix != 0, dtype="int")
@@ -114,14 +114,18 @@ def main():
 
     G = nx.Graph(edge_array)
     pos = nx.spring_layout(G, seed=1)
+
     
 
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), p)[0] for (x,p) in dags]
-    node_size = [40*np.exp(x) for x in allbics]
+    node_size = [5*np.exp(2*x) for x in allbics]
 
     print("postive:", sum(1 for x in allbics if x>0))
     print("negative:", sum(1 for x in allbics if x<0))
     print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 125")
+    
+   
+   
 
 
     # setup for MCMC

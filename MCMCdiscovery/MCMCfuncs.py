@@ -7,7 +7,7 @@ import utils
 
 # Main MCMC function
 
-def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_list = None, move_weights = None, start_edge_array = None, start_partition = None, debug = False):
+def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_weights = None, start_edge_array = None, start_partition = None, debug = False):
 
     # Check that mode is legal
     if mode not in ["bic", "map"]:
@@ -15,17 +15,16 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
     
     # Check that wieghts are legal
     if move_weights is not None:
-        p_add, p_remove = move_weights
-        if p_add<=0 or p_remove<=0 or p_add+p_remove>=1:
+        p_change_color, p_add, p_remove = move_weights
+        if p_change_color<0 or p_add<0 or p_remove<0 or sum(move_weights)>1:
             raise ValueError("invalid probabilities")
     else:
-        move_weights = [1/3, 1/3]
+        move_weights = [1/3]*3
 
     
     
-    
     num_nodes = samples.shape[1]
-    
+
 
     if start_from_GES:
         GES_edge_array = ges.fit_bic(data=samples)[0]
@@ -86,7 +85,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list, move_weights)    
+            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_weights)    
             if bic[0] > best_bic:
                 best_A = A.copy()
                 best_partition = utils.sorted_partition(partition)
@@ -107,7 +106,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
         # Run MCMC iters    
         for i in range(num_iters):
 
-            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_list, move_weights)
+            A, partition, bic, sorted_edges, fail = MCMC_iteration(samples, A, partition, bic, sorted_edges, move_weights)
 
             h1 = A.tobytes()
             h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
@@ -131,34 +130,24 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
     
 
 
-def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list = None, move_weights = None):
+def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weights = None):
     
     edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
     num_edges = len(edges_in_DAG)
 
 
     # All this should moved to CausalMCMC functions
-    p_add, p_remove = move_weights
+    p_change_color, p_add, p_remove = move_weights
     
-    if move_list is None:
-        moves = [ "change_color", "add_edge", "remove_edge"]
-        weights = [1-p_add-p_remove, p_add, p_remove]
-    else:
-        moves = move_list.copy()
+    
+    moves = [ "change_color", "add_edge", "remove_edge"]
+    weights = move_weights.copy()
 
-        if moves == ["change_color"]:
-            weights = [1]
-
-        if moves == ["add_edge", "remove_edge"]:
-            weights = [p_add,p_remove]
-
-    if num_edges == 0 and "remove_edge" in moves:
-        moves.remove("remove_edge")
-        del weights[-2]
+    if num_edges == 0:
+        weights[2] = 0
         
-    elif len(edges_giving_DAGs) == 0 and "add_edge" in moves:
-        moves.remove("add_edge")
-        del weights[-1]
+    elif len(edges_giving_DAGs) == 0 :
+        weights[1] = 0
 
     move = random.choices(moves, weights = weights, k = 1)[0]
     # END    

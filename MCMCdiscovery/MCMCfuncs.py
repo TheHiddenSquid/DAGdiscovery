@@ -129,7 +129,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
     
 
 
-def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weights = None):
+def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weights):
     
     edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
     num_edges = len(edges_in_DAG)

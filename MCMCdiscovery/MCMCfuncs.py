@@ -121,34 +121,23 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
 
 
 def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list = None, move_weights = None):
-    old_edge_array = edge_array.copy()
-    old_partition = copy.deepcopy(partition)
-    old_bic = copy.deepcopy(bic)
-
-
-    potential_edge_array = edge_array.copy()
-    potential_partition = copy.deepcopy(partition)
-
     
     edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
-
     num_edges = len(edges_in_DAG)            # Number of current edges
-    num_nodes = np.shape(edge_array)[0]      # Number of current noded
-    num_colors = len(potential_partition)    # Number of possible colors
 
 
     if move_weights is not None:
-        s,t = move_weights
+        p_add, p_remove = move_weights
     else:
-        s,t = 1/3,1/3
+        p_add, p_remove = 1/3, 1/3
 
-    if s<=0 or t<=0 or s+t>=1:
+    if p_add<=0 or p_remove<=0 or p_add+p_remove>=1:
         raise ValueError("invalid probabilities")
     
 
     if move_list is None:
         moves = [ "change_color", "add_edge", "remove_edge"]
-        weights = [1-s-t, s, t]
+        weights = [1-p_add-p_remove, p_add, p_remove]
     else:
         moves = move_list.copy()
 
@@ -156,7 +145,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
             weights = [1]
 
         if moves == ["add_edge", "remove_edge"]:
-            weights = [s,t]
+            weights = [p_add,p_remove]
 
     if num_edges == 0 and "remove_edge" in moves:
         moves.remove("remove_edge")
@@ -172,39 +161,43 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
     
     
     if move == "change_color":
-        potential_partition, current_color, new_color = change_partiton(partition)
+        potential_edge_array = edge_array
+        potential_partition, old_color, new_color = change_partiton(partition)
 
-        # Relative probability of jumping back
         q_quotient = 1
-        potential_bic = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, current_color]])
+        potential_bic = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], [new_color, old_color]])
 
 
     if move == "add_edge":
+        potential_partition = partition
+
+        potential_edge_array = edge_array.copy()
         k_old = len(edges_giving_DAGs)  # Number of edges that can be added
 
         edge = random.choice(edges_giving_DAGs)
         potential_edge_array[edge] = 1
 
-        # Relative probability of jumping back
-        q_quotient = (t*k_old) / (s*(num_edges+1))
+        q_quotient = (p_remove*k_old) / (p_add*(num_edges+1))
         potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
     
 
     if move == "remove_edge":
+        potential_partition = partition
+
+        potential_edge_array = edge_array.copy()
         edge = random.choice(edges_in_DAG)
         potential_edge_array[edge] = 0
 
-        # Relative probability of jumping back
         potential_sorted_edges = update_sorted_edges_REMOVE(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
         k_new = len(potential_sorted_edges[1])
 
-        q_quotient = (s*num_edges) / (t*k_new)
+        q_quotient = (p_add*num_edges) / (p_remove*k_new)
         potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
 
 
 
     # Metropolis Hastings
-    if random.random() <= np.exp(potential_bic[0] - old_bic[0]) * q_quotient:
+    if random.random() <= np.exp(potential_bic[0] - bic[0]) * q_quotient:
         new_edge_array = potential_edge_array
         new_partition = potential_partition
         new_bic = potential_bic
@@ -218,9 +211,9 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
         failed = 0
     else:
-        new_edge_array = old_edge_array
-        new_partition = old_partition
-        new_bic = old_bic
+        new_edge_array = edge_array
+        new_partition = partition
+        new_bic = bic
         new_sorted_edges = sorted_edges
         failed = 1
 
@@ -233,28 +226,28 @@ def change_partiton(partition):
     num_nodes = sum(len(x) for x in partition)
 
     node_to_change = random.randrange(num_nodes)
-    current_color = None
+    old_color = None
     other_colors = []
-    found_color = False
+    found_old_color = False
 
     for i, part in enumerate(partition):
-        if (not found_color) and (node_to_change in part):
-            found_color = True
-            current_color = i
+        if (not found_old_color) and (node_to_change in part):
+            found_old_color = True
+            old_color = i
         elif len(part) != 0:
             other_colors.append(i)
         else:
             empty_color = i
 
-    if len(partition[current_color]) != 1:
+    if len(partition[old_color]) != 1:
         other_colors.append(empty_color)
 
     changed_partition = copy.deepcopy(partition)
-    changed_partition[current_color].remove(node_to_change)
+    changed_partition[old_color].remove(node_to_change)
 
     new_color = random.choice(other_colors)
     changed_partition[new_color].append(node_to_change)
-    return changed_partition, current_color, new_color
+    return changed_partition, old_color, new_color
 
     
 
@@ -380,7 +373,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     edges_ML = last_change_data[0]
 
     # Node ML needs local update
-    omegas_for_color = last_change_data[1]
+    omegas_for_color = last_change_data[1].copy()
     for i in last_change_data[2]:
         part = partition[i]
         if len(part) == 0:
@@ -413,7 +406,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     
 
     # Calculate ML-eval of the different lambdas
-    edges_ML = last_change_data[0]
+    edges_ML = last_change_data[0].copy()
     node_with_new_parents = last_change_data[2]
     parents = utils.get_parents(node_with_new_parents, edge_array)
     ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[node_with_new_parents,:]), rcond=None)[0]
@@ -421,7 +414,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
 
 
     # Calculate ML-eval of the different color omegas
-    omegas_for_color = last_change_data[1]
+    omegas_for_color = last_change_data[1].copy()
 
     for i, part in enumerate(partition):
         if node_with_new_parents in part:

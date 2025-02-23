@@ -19,25 +19,24 @@ def main():
     
 
     # RUN MCM
-    num_chains = 1
-    max_num_nodes = 11  # 11 takse time
+    num_chains = 100
+    max_num_nodes = 11  # 11 takes time
     
 
     required_iters = []
 
 
-    for i in range(3, max_num_nodes):
+    for num_nodes in range(3, max_num_nodes):
         best_iters = []
-        print(i)
+        print(num_nodes)
         for _ in range(num_chains):
-            no_nodes = i
-            real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+            real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, no_colors, edge_probability)
             real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
             samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
             real_bic = score_DAG(samples, real_edge_array, real_partition)[0]
 
-            current_partition, current_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
+            current_partition, current_edge_array, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
             current_edge_array = np.array(current_edge_array != 0, dtype="int")
             current_bic = score_DAG(samples, current_edge_array, current_partition)
             current_sorted_edges = get_sorted_edges(current_edge_array)
@@ -47,7 +46,7 @@ def main():
             iters = 1
             while real_bic - best_bic > 0.1:
                 iters += 1
-                current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
+                current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3]*3)
 
                 if current_bic[0] > best_bic:
                     best_bic = current_bic[0]

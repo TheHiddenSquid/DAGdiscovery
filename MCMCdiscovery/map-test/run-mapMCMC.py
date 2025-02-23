@@ -11,7 +11,7 @@ import utils
 
 def main():
     no_nodes = 3
-    no_colors = 3
+    no_colors = 2
     edge_probability = 0.4
     sample_size = 1000
     MCMC_iterations = 10_000
@@ -44,7 +44,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, visits = CausalMCMC(samples, MCMC_iterations, mode = "freq")
+    edge_array, partition, visits = CausalMCMC(samples, MCMC_iterations, mode = "map")
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")

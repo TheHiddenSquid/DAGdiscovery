@@ -172,23 +172,7 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
     
     
     if move == "change_color":
-        old_tuple_P = utils.sorted_partition(old_partition)
-        while True:
-            potential_partition = copy.deepcopy(old_partition)
-            node = random.randrange(num_nodes)
-            for i, part in enumerate(potential_partition):
-                if node in part:
-                    current_color = i
-                    break
-            potential_partition[current_color].remove(node)
-
-            new_color = current_color
-            while new_color == current_color:
-                new_color = random.randrange(num_colors)
-            potential_partition[new_color].append(node)
-
-            if old_tuple_P != utils.sorted_partition(potential_partition):
-                break
+        potential_partition, current_color, new_color = change_partiton(partition)
 
         # Relative probability of jumping back
         q_quotient = 1
@@ -243,6 +227,36 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
     return new_edge_array, new_partition, new_bic, new_sorted_edges, failed
 
 
+
+# For moves
+def change_partiton(partition):
+    num_nodes = sum(len(x) for x in partition)
+
+    node_to_change = random.randrange(num_nodes)
+    current_color = None
+    other_colors = []
+    found_color = False
+
+    for i, part in enumerate(partition):
+        if (not found_color) and (node_to_change in part):
+            found_color = True
+            current_color = i
+        elif len(part) != 0:
+            other_colors.append(i)
+        else:
+            empty_color = i
+
+    if len(partition[current_color]) != 1:
+        other_colors.append(empty_color)
+
+    changed_partition = copy.deepcopy(partition)
+    changed_partition[current_color].remove(node_to_change)
+
+    new_color = random.choice(other_colors)
+    changed_partition[new_color].append(node_to_change)
+    return changed_partition, current_color, new_color
+
+    
 
 # For edge lookups
 

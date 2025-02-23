@@ -9,7 +9,7 @@ import utils
 
 def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_list = None, move_weights = None, start_edge_array = None, start_partition = None, debug = False):
 
-    if mode not in ["bic", "freq"]:
+    if mode not in ["bic", "map"]:
         raise ValueError("Mode not supported")
     
     
@@ -89,7 +89,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_li
             return best_A, best_partition, best_bic
     
 
-    if mode == "freq":
+    if mode == "map":
         cashe = defaultdict(lambda: 0)
         num_fails = 0
 
@@ -170,20 +170,25 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
         
 
     
-
-
+    
     if move == "change_color":
-        node = random.randrange(num_nodes)
-        for i, part in enumerate(potential_partition):
-            if node in part:
-                current_color = i
-                break
-        potential_partition[current_color].remove(node)
+        old_tuple_P = utils.sorted_partition(old_partition)
+        while True:
+            potential_partition = copy.deepcopy(old_partition)
+            node = random.randrange(num_nodes)
+            for i, part in enumerate(potential_partition):
+                if node in part:
+                    current_color = i
+                    break
+            potential_partition[current_color].remove(node)
 
-        new_color = current_color
-        while new_color == current_color:
-            new_color = random.randrange(num_colors)
-        potential_partition[new_color].append(node)
+            new_color = current_color
+            while new_color == current_color:
+                new_color = random.randrange(num_colors)
+            potential_partition[new_color].append(node)
+
+            if old_tuple_P != utils.sorted_partition(potential_partition):
+                break
 
         # Relative probability of jumping back
         q_quotient = 1

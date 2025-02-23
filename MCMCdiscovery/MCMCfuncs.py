@@ -15,9 +15,11 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
     
     # Check that wieghts are legal
     if move_weights is not None:
+        if len(move_weights) != 3:
+            raise ValueError("Lenght of weights must be 3")
         p_change_color, p_add, p_remove = move_weights
         if p_change_color<0 or p_add<0 or p_remove<0 or not np.isclose(sum(move_weights),1):
-            raise ValueError("invalid move probabilities")
+            raise ValueError("Invalid move probabilities")
     else:
         move_weights = [1/3]*3
 

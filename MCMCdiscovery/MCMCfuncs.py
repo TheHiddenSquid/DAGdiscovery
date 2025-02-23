@@ -164,12 +164,12 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
         potential_partition = partition
 
         potential_edge_array = edge_array.copy()
-        k_old = len(edges_giving_DAGs)  # Number of edges that can be added
+        old_num_addible_edges = len(edges_giving_DAGs)  # Number of edges that can be added
 
         edge = random.choice(edges_giving_DAGs)
         potential_edge_array[edge] = 1
 
-        q_quotient = (p_remove*k_old) / (p_add*(num_edges+1))
+        q_quotient = (p_remove*old_num_addible_edges) / (p_add*(num_edges+1))
         potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
     
 
@@ -181,13 +181,13 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_weigh
         potential_edge_array[edge] = 0
 
         potential_sorted_edges = update_sorted_edges_REMOVE(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-        k_new = len(potential_sorted_edges[1])
+        new_num_addible_edges = len(potential_sorted_edges[1])
 
-        q_quotient = (p_add*num_edges) / (p_remove*k_new)
+        q_quotient = (p_add*num_edges) / (p_remove*new_num_addible_edges)
         potential_bic = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [bic[1], bic[2], edge[1]])
 
 
-    # Metropolis Hastings to accept or reject new DAG
+    # Metropolis Hastings to accept or reject new colored DAG
     if random.random() <= np.exp(potential_bic[0] - bic[0]) * q_quotient:
         new_edge_array = potential_edge_array
         new_partition = potential_partition

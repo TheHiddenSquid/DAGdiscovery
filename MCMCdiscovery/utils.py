@@ -106,10 +106,9 @@ def sorted_partition(partition):
     for i in range(num_nodes):
         if dones[i] == True:
             continue
-        for j, part in enumerate(partition):
-            part.sort()
+        for part in partition:
             if i in part:
-                sorted_partition.append(part)
+                sorted_partition.append(sorted(part))
                 for k in part:
                     dones[k] = True
     return sorted_partition

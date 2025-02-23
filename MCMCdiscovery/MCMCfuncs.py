@@ -9,8 +9,19 @@ import utils
 
 def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_list = None, move_weights = None, start_edge_array = None, start_partition = None, debug = False):
 
+    # Check that mode is legal
     if mode not in ["bic", "map"]:
         raise ValueError("Mode not supported")
+    
+    # Check that wieghts are legal
+    if move_weights is not None:
+        p_add, p_remove = move_weights
+        if p_add<=0 or p_remove<=0 or p_add+p_remove>=1:
+            raise ValueError("invalid probabilities")
+    else:
+        move_weights = [1/3, 1/3]
+
+    
     
     
     num_nodes = samples.shape[1]
@@ -127,15 +138,8 @@ def MCMC_iteration(samples, edge_array, partition, bic, sorted_edges, move_list 
 
 
     # All this should moved to CausalMCMC functions
-    if move_weights is not None:
-        p_add, p_remove = move_weights
-    else:
-        p_add, p_remove = 1/3, 1/3
-
-    if p_add<=0 or p_remove<=0 or p_add+p_remove>=1:
-        raise ValueError("invalid probabilities")
+    p_add, p_remove = move_weights
     
-
     if move_list is None:
         moves = [ "change_color", "add_edge", "remove_edge"]
         weights = [1-p_add-p_remove, p_add, p_remove]

@@ -78,7 +78,7 @@ def main():
     
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
     node_size = [20*np.exp(2*x) for x in allbics]
-
+    print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 25")
     
    
 
@@ -115,7 +115,7 @@ def main():
         global current_node
 
         ax.clear()
-        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, move_list=["add_edge", "remove_edge"])
+        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3,1/3,1/3])
 
         A = current_edge_array.astype("int")
         labels[dags.index(A.tobytes())] += 1

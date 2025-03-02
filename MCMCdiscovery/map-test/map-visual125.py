@@ -161,7 +161,7 @@ def main():
         global current_node
 
         ax.clear()
-        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
+        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3,1/3,1/3])
 
         A = current_edge_array.astype("int")
         current_partition_tuple = tuple(tuple(x) for x in utils.sorted_partition(current_partition))

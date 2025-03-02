@@ -1,15 +1,15 @@
+import random
+import sys
+import time
+
+import ges
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import random
-import ges
-import time
-import sys
-sys.path.append("../")
-from MCMCfuncs import CausalMCMC
-from MCMCfuncs import score_DAG
-import utils
 
+sys.path.append("../")
+import utils
+from MCMCfuncs import CausalMCMC, score_DAG
 
 
 def main():

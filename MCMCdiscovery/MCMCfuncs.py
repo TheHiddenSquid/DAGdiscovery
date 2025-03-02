@@ -1,8 +1,9 @@
-import random
-import numpy as np
-import ges
 import copy
+import random
 from collections import defaultdict
+
+import ges
+import numpy as np
 import utils
 
 # Main MCMC function
@@ -149,43 +150,39 @@ def MCMC_iteration(samples, edge_array, partition, score_info, sorted_edges, mov
 
     move = random.choices(moves, weights = weights, k = 1)[0]
 
-
-
     # Create new colored DAG based on move
-    if move == "change_color":
-        potential_edge_array = edge_array
-        potential_partition, node, old_color, new_color = change_partiton(partition)
+    match move:
+        case "change_color":
+            potential_edge_array = edge_array
+            potential_partition, node, old_color, new_color = change_partiton(partition)
 
-        q_quotient = 1
-        potential_score_info = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+            q_quotient = 1
+            potential_score_info = score_DAG_color_edit(samples, potential_edge_array, potential_partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
 
+        case "add_edge":
+            potential_partition = partition
 
-    if move == "add_edge":
-        potential_partition = partition
+            potential_edge_array = edge_array.copy()
+            old_num_addible_edges = len(edges_giving_DAGs)  # Number of edges that can be added
 
-        potential_edge_array = edge_array.copy()
-        old_num_addible_edges = len(edges_giving_DAGs)  # Number of edges that can be added
+            edge = random.choice(edges_giving_DAGs)
+            potential_edge_array[edge] = 1
 
-        edge = random.choice(edges_giving_DAGs)
-        potential_edge_array[edge] = 1
+            q_quotient = (p_remove*old_num_addible_edges) / (p_add*(num_edges+1))
+            potential_score_info = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [score_info[1], score_info[2], score_info[3], edge])
 
-        q_quotient = (p_remove*old_num_addible_edges) / (p_add*(num_edges+1))
-        potential_score_info = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [score_info[1], score_info[2], score_info[3], edge])
+        case "remove_edge":
+            potential_partition = partition
 
-    
-    if move == "remove_edge":
-        potential_partition = partition
+            potential_edge_array = edge_array.copy()
+            edge = random.choice(edges_in_DAG)
+            potential_edge_array[edge] = 0
 
-        potential_edge_array = edge_array.copy()
-        edge = random.choice(edges_in_DAG)
-        potential_edge_array[edge] = 0
+            potential_sorted_edges = update_sorted_edges_REMOVE(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
+            new_num_addible_edges = len(potential_sorted_edges[1])
 
-        potential_sorted_edges = update_sorted_edges_REMOVE(potential_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-        new_num_addible_edges = len(potential_sorted_edges[1])
-
-        q_quotient = (p_add*num_edges) / (p_remove*new_num_addible_edges)
-        potential_score_info = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [score_info[1], score_info[2], score_info[3], edge])
-
+            q_quotient = (p_add*num_edges) / (p_remove*new_num_addible_edges)
+            potential_score_info = score_DAG_edge_edit(samples, potential_edge_array, potential_partition, [score_info[1], score_info[2], score_info[3], edge])
 
 
     # Metropolis Hastings to accept or reject new colored DAG

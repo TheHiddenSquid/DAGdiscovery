@@ -74,8 +74,11 @@ def generate_sample(size, lambda_matrix, omega_matrix):
 
 def is_DAG(A):
     numnodes = A.shape[0]
+    if numnodes < 8:
+        P = A
+    else:
+        P = A.astype(np.float32)
     power = 1
-    P = A.astype(np.float32)
     while power < numnodes:
         P = P @ P
         power *= 2

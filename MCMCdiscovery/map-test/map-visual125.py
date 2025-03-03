@@ -1,15 +1,16 @@
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import networkx as nx
-import numpy as np
 import random
 import sys
+
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+
 sys.path.append("../")
-from MCMCfuncs import MCMC_iteration
-from MCMCfuncs import score_DAG
-from MCMCfuncs import get_sorted_edges
-import utils
 from collections import defaultdict
+
+import utils
+from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
 
 
 def get_all_3node_DAGs(color = False):
@@ -118,7 +119,7 @@ def main():
     
 
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), p)[0] for (x,p) in dags]
-    node_size = [5*np.exp(2*x) for x in allbics]
+    node_size = [600*np.exp(2*x) for x in allbics]
 
     print("postive:", sum(1 for x in allbics if x>0))
     print("negative:", sum(1 for x in allbics if x<0))
@@ -139,7 +140,7 @@ def main():
         global current_bic
         global labels
         current_edge_array = np.zeros((3,3))
-        current_partition = [[i] for i in range(3)]
+        current_partition = [{i} for i in range(3)]
         current_sorted_edges = get_sorted_edges(current_edge_array)
         current_bic = score_DAG(samples, current_edge_array, current_partition)
 

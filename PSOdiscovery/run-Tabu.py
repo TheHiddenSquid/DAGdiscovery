@@ -49,7 +49,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, found_iter, _ = CausalTabuSearch(samples, MCMC_iterations, start_from_GES = False, debug=True)
+    edge_array, partition, bic, found_iter = CausalTabuSearch(samples, MCMC_iterations)
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")

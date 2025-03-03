@@ -130,7 +130,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         best_A = np.frombuffer(best_A, dtype=np.int64)
         best_A = np.reshape(best_A, (num_nodes,num_nodes))
 
-        best_partition = [list(x) for x in most_visited[1]]
+        best_partition = [set(x) for x in most_visited[1]]
 
         if debug: 
             return best_A, best_partition, num_visits, num_fails
@@ -314,9 +314,12 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
 def score_DAG(samples, edge_array, partition):
     samples = samples.T
     
+    global num_nodes
+    global num_samples
     global BIC_constant
+    num_nodes = samples.shape[0]
+    num_samples = samples.shape[1]
     BIC_constant = np.log(num_samples)/(num_samples*2)
-
 
     # Calculate ML-eval of the different lambdas
     edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -326,8 +329,8 @@ def score_DAG(samples, edge_array, partition):
         edges_ML[parents, i] = ans
 
     # Calculate ML-eval of the different color omegas
-    omegas_ML = [None] * len(partition)
-    bic_decomp = [0] * len(partition)
+    omegas_ML = [None] * num_nodes
+    bic_decomp = [0] * num_nodes
 
     for i, part in enumerate(partition):
         if len(part) == 0:

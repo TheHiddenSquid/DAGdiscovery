@@ -139,9 +139,6 @@ def generate_random_partition(no_nodes, no_colors):
     for node in range(no_nodes):
         color = random.randrange(no_colors)
         partition[color].add(node)
-    partition = sorted_partition(partition)
-    for _ in range(no_colors-len(partition)):
-        partition.append(set())
     return partition
 
 def sorted_partition(partition):

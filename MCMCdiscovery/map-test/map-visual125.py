@@ -119,7 +119,7 @@ def main():
     
 
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), p)[0] for (x,p) in dags]
-    node_size = [600*np.exp(2*x) for x in allbics]
+    node_size = [2*np.exp(2*x) for x in allbics]
 
     print("postive:", sum(1 for x in allbics if x>0))
     print("negative:", sum(1 for x in allbics if x<0))

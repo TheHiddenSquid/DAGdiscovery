@@ -1,15 +1,15 @@
+import random
+import sys
+import time
+
+import ges
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import random
-import ges
-import time
-import sys
-sys.path.append("../")
-from MWfuncs import CausalMW
-from MWfuncs import score_DAG
-import utils
 
+sys.path.append("../")
+import utils
+from Tabufuncs import CausalTabuSearch
 
 
 def main():
@@ -19,11 +19,10 @@ def main():
     no_colors = 2
     edge_probability = 0.4
     sample_size = 1000
-    iterations = 10
-
+    MCMC_iterations = 100_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
-    real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
+    real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
 
 
     # Create plots
@@ -50,20 +49,22 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic = CausalMW(samples, iterations)
+    edge_array, partition, bic, found_iter, _ = CausalTabuSearch(samples, MCMC_iterations, start_from_GES = False, debug=True)
 
-    print(f"Ran MCMC for {iterations} iterations")
+
+    print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
+    print("Found on iteration:", found_iter)
     print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
-    print("The found DAG with correct coloring gives BIC:", score_DAG(samples, edge_array, real_partition)[0])
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
+    print("The found DAG with correct coloring gives BIC:", utils.score_DAG(samples, edge_array, real_partition))
+    print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 
 
     plt.axes(ax3)
     G = nx.DiGraph(edge_array)
     nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
-    plt.title("PSO")
+    plt.title("MCMC")
 
 
     plt.show()

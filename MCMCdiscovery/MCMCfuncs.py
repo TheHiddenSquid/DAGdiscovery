@@ -434,10 +434,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
 
     # Calculate BIC
     bic_decomp = last_change_data[2].copy()
-
-    part = partition[current_color]
     bic_decomp[current_color] = -len(part) * (np.log(omegas_ML[current_color]) + 1)
-    
     bic = sum(bic_decomp) / 2
     bic -= np.log(num_samples)/(num_samples*2) * (num_colors + np.sum(edge_array))
 

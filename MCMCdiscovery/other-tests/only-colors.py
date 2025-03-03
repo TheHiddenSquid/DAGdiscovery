@@ -1,15 +1,14 @@
+import random
+import sys
+import time
+
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import time
-import random
-import sys
+
 sys.path.append("../")
-from MCMCfuncs import CausalMCMC
-from MCMCfuncs import score_DAG
 import utils
-
-
+from MCMCfuncs import CausalMCMC, score_DAG
 
 
 def main():
@@ -41,14 +40,13 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, iters, _ = CausalMCMC(samples, MCMC_iterations, move_weights = [1,0,0], start_edge_array = real_edge_array, debug=True)
+    edge_array, partition, bic = CausalMCMC(samples, MCMC_iterations, move_weights = [1,0,0], start_edge_array = real_edge_array)
 
 
     print("MCMC given the correct edges")
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
-    print("Found on iteration:", iters)
     print("CHD to real DAG was:", utils.calc_CHD(partition, real_partition))
     print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
 

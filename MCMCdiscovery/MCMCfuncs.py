@@ -63,7 +63,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
     else:
         # Fully random colored DAG
         partition, A, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
-        A = np.array(A != 0, dtype="int")
+        A = np.array(A != 0, dtype=np.int64)
         partition = [[i] for i in range(num_nodes)]
     
 
@@ -119,7 +119,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         num_visits = cashe[most_visited]
 
         best_A = most_visited[0]
-        best_A = np.frombuffer(best_A, dtype="int")
+        best_A = np.frombuffer(best_A, dtype=np.int64)
         best_A = np.reshape(best_A, (num_nodes,num_nodes))
 
         best_partition = [list(x) for x in most_visited[1]]
@@ -315,7 +315,7 @@ def score_DAG(samples, edge_array, partition):
     num_colors = sum(1 for x in partition if len(x)>0)
 
     # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
+    edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
     for i in range(num_nodes):
         parents = utils.get_parents(i, edge_array)
         ans = np.linalg.lstsq(samples[parents,:].T, samples[i,:].T, rcond=None)[0]

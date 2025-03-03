@@ -26,9 +26,17 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         move_weights = [1/3]*3
 
     
-    # Other settings
-    num_nodes = samples.shape[1]
+    # Setup global variables
+    global num_nodes
+    global num_samples
+    global BIC_constant
 
+    num_nodes = samples.shape[1]
+    num_samples = samples.shape[0]
+    BIC_constant = np.log(num_samples)/(num_samples*2)
+
+
+    # Perform optional setup
     if start_from_GES:
         GES_edge_array = ges.fit_bic(data=samples)[0]
 
@@ -309,10 +317,10 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
 # For DAG heuristic
 def score_DAG(samples, edge_array, partition):
     samples = samples.T
+    
+    global BIC_constant
+    BIC_constant = np.log(num_samples)/(num_samples*2)
 
-    num_nodes = samples.shape[0]
-    num_samples = samples.shape[1]
-    num_colors = sum(1 for x in partition if len(x)>0)
 
     # Calculate ML-eval of the different lambdas
     edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -339,17 +347,15 @@ def score_DAG(samples, edge_array, partition):
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= np.log(num_samples)/(num_samples*2) * (num_colors + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for x in partition if len(x)>0) + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
 def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     samples = samples.T
-    num_samples = samples.shape[1]
-    num_colors = sum(1 for x in partition if len(x)>0)
     
-
+    
     # Edge ML is the same
     edges_ML = last_change_data[0]
 
@@ -388,16 +394,13 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= np.log(num_samples)/(num_samples*2) * (num_colors + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for x in partition if len(x)>0) + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
 def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     samples = samples.T
-
-    num_samples = samples.shape[1]
-    num_colors = sum(1 for x in partition if len(x)>0)
     
 
     # Calculate ML-eval of the different lambdas
@@ -436,7 +439,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     bic_decomp = last_change_data[2].copy()
     bic_decomp[current_color] = -len(part) * (np.log(omegas_ML[current_color]) + 1)
     bic = sum(bic_decomp) / 2
-    bic -= np.log(num_samples)/(num_samples*2) * (num_colors + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for x in partition if len(x)>0) + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]

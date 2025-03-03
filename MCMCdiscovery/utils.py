@@ -135,13 +135,13 @@ def score_DAG(samples, edge_array, partition):
 # Partition generation and manipulation
 
 def generate_random_partition(no_nodes, no_colors):
-    partition = [[] for _ in range(no_colors)]
+    partition = [set() for _ in range(no_colors)]
     for node in range(no_nodes):
         color = random.randrange(no_colors)
-        partition[color].append(node)
+        partition[color].add(node)
     partition = sorted_partition(partition)
     for _ in range(no_colors-len(partition)):
-        partition.append([])
+        partition.append(set())
     return partition
 
 def sorted_partition(partition):

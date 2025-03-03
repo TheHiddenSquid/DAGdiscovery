@@ -1,15 +1,15 @@
+import copy
+import random
+import sys
+
+import ges
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import random
-import ges
-import sys
-sys.path.append("../")
-from MCMCfuncs import MCMC_iteration
-from MCMCfuncs import score_DAG
-from MCMCfuncs import get_sorted_edges
-import utils
 
+sys.path.append("../")
+import utils
+from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
 
 
 def main():
@@ -120,11 +120,11 @@ def main():
 
         for i in range(MCMC_iterations):
 
-            current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
+            current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3,1/3,1/3])
 
             if current_bic[0] > best_bic:
                 best_edge_array = current_edge_array.copy()
-                best_partition = current_partition.copy()
+                best_partition = copy.deepcopy(current_partition)
                 best_bic = current_bic[0]
                 best_iter = j*MCMC_iterations+i
             

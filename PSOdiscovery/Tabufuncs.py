@@ -9,10 +9,12 @@ import utils
 def CausalTabuSearch(samples, num_iters):
     
     # Setup global variables
+    global visited
     global num_nodes
     global num_samples
     global BIC_constant
 
+    visited = set()
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
     BIC_constant = np.log(num_samples)/(num_samples*2)
@@ -36,6 +38,7 @@ def CausalTabuSearch(samples, num_iters):
 
     # Run MCMC iters    
     for i in range(num_iters):
+        print(i)
         A, partition, score_info, sorted_edges, fail = iteration(samples, A, partition, score_info, sorted_edges)
         if score_info[0] > best_bic:
             best_A = A.copy()
@@ -43,6 +46,10 @@ def CausalTabuSearch(samples, num_iters):
             best_bic = score_info[0]
             best_iter = i
         fails += fail
+        
+        h1 = A.tobytes()
+        h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
+        visited.add((h1,h2))
 
     return best_A, best_partition, best_bic, best_iter, fails
     
@@ -50,6 +57,8 @@ def CausalTabuSearch(samples, num_iters):
 
 def iteration(samples, edge_array, partition, score_info, sorted_edges):
     
+    global visited
+
     move = None
     saved_edge = None
     best_edge_array = None
@@ -86,6 +95,7 @@ def iteration(samples, edge_array, partition, score_info, sorted_edges):
                 best_score_info = potential_score_info
                 move = "change_color"
 
+
             partition[new_color].remove(node)
         partition[old_color].add(node)
 
@@ -108,7 +118,7 @@ def iteration(samples, edge_array, partition, score_info, sorted_edges):
     for edge in edges_in_DAG:
         edge_array[edge] = 0
         potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
-
+        
         if potential_score_info[0] > best_score_info[0]:
             best_edge_array = edge_array.copy()
             best_score_info = potential_score_info
@@ -120,6 +130,8 @@ def iteration(samples, edge_array, partition, score_info, sorted_edges):
 
 
     # Do the best possible jump
+    fail = 0
+
     if best_score_info[0] > score_info[0]:
 
         new_score_info = best_score_info
@@ -137,18 +149,69 @@ def iteration(samples, edge_array, partition, score_info, sorted_edges):
             new_partition = partition
             new_sorted_edges = update_sorted_edges_REMOVE(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], saved_edge)
 
-        fail = 0
-    else:
-        new_edge_array = edge_array
-        new_partition = partition
-        new_score_info = score_info
-        new_sorted_edges = sorted_edges
+        h1 = new_edge_array.tobytes()
+        h2 = tuple(tuple(x) for x in utils.sorted_partition(new_partition))
 
+        if (h1,h2) in visited:
+            fail = 1
+            new_edge_array, new_partition, new_sorted_edges, new_score_info = make_random_move(samples, edge_array, partition, sorted_edges, score_info)
+
+    else:
         fail = 1
+        new_edge_array, new_partition, new_sorted_edges, new_score_info = make_random_move(samples, edge_array, partition, sorted_edges, score_info)
+
         
     return new_edge_array, new_partition, new_score_info, new_sorted_edges, fail
 
-    
+
+def make_random_move(samples, edge_array, partition, sorted_edges, score_info):
+    edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
+
+    moves = [ "change_color", "add_edge", "remove_edge"]
+    weights = [1/3]*3
+    if len(edges_in_DAG) == 0:
+        weights[2] = 0  
+    elif len(edges_giving_DAGs) == 0 :
+        weights[1] = 0
+    move = random.choices(moves, weights = weights, k = 1)[0]
+
+
+    if move == "change_color":
+        node = random.randrange(num_nodes)
+        old_color = None
+        other_colors = []
+
+        for i, part in enumerate(partition):
+            if node in part:
+                old_color = i
+            elif len(part) != 0:
+                other_colors.append(i)
+            else:
+                empty_color = i
+
+        if len(partition[old_color]) != 1:
+            other_colors.append(empty_color)
+
+        partition[old_color].remove(node)
+        new_color = random.choice(other_colors)
+        partition[new_color].add(node)
+        score_info = score_DAG_color_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+        
+
+    if move == "add_edge":
+        edge = random.choice(edges_giving_DAGs)
+        edge_array[edge] = 1
+        sorted_edges = update_sorted_edges_ADD(edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
+        score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+
+    if move == "remove_edge":
+        edge = random.choice(edges_in_DAG)
+        edge_array[edge] = 0
+        sorted_edges = update_sorted_edges_REMOVE(edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
+        score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+
+    return edge_array, partition, sorted_edges, score_info
+
 
 # For edge lookups
 

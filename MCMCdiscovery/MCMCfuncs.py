@@ -72,7 +72,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         # Fully random colored DAG
         partition, A, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
         A = np.array(A != 0, dtype=np.int64)
-        partition = [[i] for i in range(num_nodes)]
+        partition = [{i} for i in range(num_nodes)]
     
 
     if start_partition is not None:
@@ -200,7 +200,7 @@ def MCMC_iteration(samples, edge_array, partition, score_info, sorted_edges, mov
     else:
         if move == "change_color":
             partition[new_color].remove(node)
-            partition[old_color].append(node)
+            partition[old_color].add(node)
         elif move == "add_edge":
             edge_array[edge] = 0
         elif move == "remove_edge":
@@ -220,11 +220,9 @@ def change_partiton(partition):
     node_to_change = random.randrange(num_nodes)
     old_color = None
     other_colors = []
-    found_old_color = False
 
     for i, part in enumerate(partition):
-        if (not found_old_color) and (node_to_change in part):
-            found_old_color = True
+        if node_to_change in part:
             old_color = i
         elif len(part) != 0:
             other_colors.append(i)
@@ -236,7 +234,7 @@ def change_partiton(partition):
 
     partition[old_color].remove(node_to_change)
     new_color = random.choice(other_colors)
-    partition[new_color].append(node_to_change)
+    partition[new_color].add(node_to_change)
 
     return partition, node_to_change, old_color, new_color
 
@@ -337,7 +335,7 @@ def score_DAG(samples, edge_array, partition):
         tot = 0
         for node in part:
             parents = utils.get_parents(node, edge_array)
-            tot += np.linalg.norm(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:])**2
+            tot += np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
         omegas_ML[i] = tot / (num_samples * len(part))
 
 
@@ -363,7 +361,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     
     node, old_color, new_color = last_change_data[3]
     parents = utils.get_parents(node, edge_array)
-    node_ml_contribution = np.linalg.norm(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:])**2
+    node_ml_contribution = np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
 
     if len(partition[old_color]) == 0:
         omegas_ML[old_color] = None
@@ -426,8 +424,8 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
 
     part = partition[current_color]
     tot = omegas_ML[current_color] * num_samples * len(part)
-    tot -= np.linalg.norm(samples[new_child,:] - old_ml.T @ samples[old_parents,:])**2
-    tot += np.linalg.norm(samples[new_child,:] - new_ml.T @ samples[new_parents,:])**2
+    tot -= np.dot(x:=(samples[new_child,:] - old_ml.T @ samples[old_parents,:]), x)
+    tot += np.dot(x:=(samples[new_child,:] - new_ml.T @ samples[new_parents,:]), x)
     omegas_ML[current_color] = tot / (num_samples * len(part))
 
 

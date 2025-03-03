@@ -323,6 +323,7 @@ def score_DAG(samples, edge_array, partition):
 
     # Calculate ML-eval of the different color omegas
     omegas_ML = [None] * len(partition)
+    bic_decomp = [0]*len(partition)
 
     for i, part in enumerate(partition):
         if len(part) == 0:
@@ -334,17 +335,11 @@ def score_DAG(samples, edge_array, partition):
         omegas_ML[i] = tot / (num_samples * len(part))
 
 
-    # Calculate BIC
-
-    bic_decomp = [0]*len(partition)
-
-    for i, part in enumerate(partition):
-        if len(part) == 0:
-            continue
-        bic_decomp[i] = -len(part) * np.log(omegas_ML[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
+        # Calculate BIC
+        bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic = bic - np.log(num_samples)/(num_samples*2) * num_colors
+    bic -= np.log(num_samples)/(num_samples*2) * (num_colors + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
@@ -390,10 +385,10 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
         if len(part) == 0:
             bic_decomp[i] = 0
             continue
-        bic_decomp[i] = -len(part) * np.log(omegas_ML[i]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
+        bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= np.log(num_samples)/(num_samples*2) * num_colors
+    bic -= np.log(num_samples)/(num_samples*2) * (num_colors + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
@@ -441,10 +436,10 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     bic_decomp = last_change_data[2].copy()
 
     part = partition[current_color]
-    bic_decomp[current_color] = -len(part) * np.log(omegas_ML[current_color]) - len(part) - (np.log(num_samples)/num_samples) * sum(len(utils.get_parents(x, edge_array)) for x in part)
+    bic_decomp[current_color] = -len(part) * (np.log(omegas_ML[current_color]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= np.log(num_samples)/(num_samples*2) * num_colors
+    bic -= np.log(num_samples)/(num_samples*2) * (num_colors + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]

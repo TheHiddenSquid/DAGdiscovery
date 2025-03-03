@@ -1,14 +1,13 @@
-import matplotlib.pyplot as plt
-import numpy as np
+import copy
 import random
 import sys
-import copy
-sys.path.append("../")
-from MCMCfuncs import MCMC_iteration
-from MCMCfuncs import score_DAG
-from MCMCfuncs import get_sorted_edges
-import utils
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+sys.path.append("../")
+import utils
+from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
 
 
 def main():
@@ -42,7 +41,7 @@ def main():
         for j in range(num_params):
             print(j)
             
-            params = [param_list[j]]*2
+            params = [1-2*param_list[j], param_list[j], param_list[j]]
 
             current_partition = copy.deepcopy(start_partition)
             current_edge_array = start_edge_array.copy()

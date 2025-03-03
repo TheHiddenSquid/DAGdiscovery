@@ -1,13 +1,16 @@
-import matplotlib.pyplot as plt
-from matplotlib import cm
-import matplotlib.colors as colors
 import pickle
-import numpy as np
 import random
 import sys
+
+import matplotlib.colors as colors
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import cm
+
 sys.path.append("../")
 import MCMCfuncs
 import utils
+
 
 def test3d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None):
     if loadfile is not None:
@@ -123,7 +126,7 @@ def main():
 
     load1 = "3d6nodes.pkl"
     load2 = "3d20nodes.pkl"
-    test3d(resolution = 10, sample_size = 1000, MCMCiterations = 1_000, savefile=save, loadfile=None)
+    test3d(resolution = 20, sample_size = 1000, MCMCiterations = 1_000, savefile=save, loadfile=None)
 
     load1 = "2d6nodes.pkl"
     load2 = "2d20nodes.pkl"
@@ -133,3 +136,4 @@ def main():
     
 if __name__ == "__main__":
     main()
+    

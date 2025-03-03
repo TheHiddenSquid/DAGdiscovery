@@ -308,7 +308,7 @@ def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edg
 
 # For DAG heuristic
 def score_DAG(samples, edge_array, partition):
-    samples = np.transpose(samples)
+    samples = samples.T
 
     num_nodes = samples.shape[0]
     num_samples = samples.shape[1]
@@ -318,7 +318,7 @@ def score_DAG(samples, edge_array, partition):
     edges_ML = np.zeros((num_nodes,num_nodes), dtype="float")
     for i in range(num_nodes):
         parents = utils.get_parents(i, edge_array)
-        ans = np.linalg.lstsq(np.transpose(samples[parents,:]), np.transpose(samples[i,:]), rcond=None)[0]
+        ans = np.linalg.lstsq(samples[parents,:].T, samples[i,:].T, rcond=None)[0]
         edges_ML[parents, i] = ans
 
     # Calculate ML-eval of the different color omegas
@@ -331,7 +331,7 @@ def score_DAG(samples, edge_array, partition):
         tot = 0
         for node in part:
             parents = utils.get_parents(node, edge_array)
-            tot += np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+            tot += np.linalg.norm(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:])**2
         omegas_ML[i] = tot / (num_samples * len(part))
 
 
@@ -345,7 +345,7 @@ def score_DAG(samples, edge_array, partition):
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
 def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
-    samples = np.transpose(samples)
+    samples = samples.T
     num_samples = samples.shape[1]
     num_colors = sum(1 for x in partition if len(x)>0)
     
@@ -359,7 +359,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     node, old_color, new_color = last_change_data[3]
 
     parents = utils.get_parents(node, edge_array)
-    node_ml_contribution = np.linalg.norm(samples[node,:]-np.matmul(np.transpose(edges_ML[parents,node]), samples[parents,:]))**2
+    node_ml_contribution = np.linalg.norm(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:])**2
 
     if len(partition[old_color]) == 0:
         omegas_ML[old_color] = None
@@ -394,7 +394,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
 def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
-    samples = np.transpose(samples)
+    samples = samples.T
 
     num_samples = samples.shape[1]
     num_colors = sum(1 for x in partition if len(x)>0)
@@ -412,7 +412,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
         old_parents.append(new_parent)
 
     old_ml = edges_ML[old_parents, new_child]
-    new_ml = np.linalg.lstsq(np.transpose(samples[new_parents,:]), np.transpose(samples[new_child,:]), rcond=None)[0]
+    new_ml = np.linalg.lstsq(samples[new_parents,:].T, samples[new_child,:].T, rcond=None)[0]
     edges_ML[new_parents, new_child] = new_ml
 
 
@@ -426,8 +426,8 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
 
     part = partition[current_color]
     tot = omegas_ML[current_color] * num_samples * len(part)
-    tot -= np.linalg.norm(samples[new_child,:]-np.matmul(np.transpose(old_ml), samples[old_parents,:]))**2
-    tot += np.linalg.norm(samples[new_child,:]-np.matmul(np.transpose(new_ml), samples[new_parents,:]))**2
+    tot -= np.linalg.norm(samples[new_child,:] - old_ml.T @ samples[old_parents,:])**2
+    tot += np.linalg.norm(samples[new_child,:] - new_ml.T @ samples[new_parents,:])**2
     omegas_ML[current_color] = tot / (num_samples * len(part))
 
 

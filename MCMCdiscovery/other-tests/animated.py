@@ -1,14 +1,14 @@
-import matplotlib.pyplot as plt
+import sys
+
+import ges
 import matplotlib.animation as animation
+import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-import ges
-import sys
+
 sys.path.append("../")
-from MCMCfuncs import MCMC_iteration
-from MCMCfuncs import score_DAG
-from MCMCfuncs import get_sorted_edges
 import utils
+from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
 
 
 def main():
@@ -125,7 +125,7 @@ def main():
         global current_bic
         global samples
 
-        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
+        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3,1/3,1/3])
         
         G = nx.DiGraph(current_edge_array)
         nx.draw_circular(G, node_color=utils.generate_color_map(current_partition), with_labels=True)

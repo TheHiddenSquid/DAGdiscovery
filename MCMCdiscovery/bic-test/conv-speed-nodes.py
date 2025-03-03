@@ -1,13 +1,12 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import random
 import sys
-sys.path.append("../")
-from MCMCfuncs import MCMC_iteration
-from MCMCfuncs import score_DAG
-from MCMCfuncs import get_sorted_edges
-import utils
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+sys.path.append("../")
+import utils
+from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
 
 
 def main():
@@ -20,7 +19,7 @@ def main():
 
     # RUN MCM
     num_chains = 100
-    max_num_nodes = 11  # 11 takes time
+    max_num_nodes = 6  # 11 takes time
     
 
     required_iters = []
@@ -34,7 +33,7 @@ def main():
             real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
             samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
-            real_bic = score_DAG(samples, real_edge_array, real_partition)[0]
+            real_bic = utils.score_DAG(samples, real_edge_array, real_partition)
 
             current_partition, current_edge_array, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
             current_edge_array = np.array(current_edge_array != 0, dtype="int")
@@ -44,7 +43,7 @@ def main():
             best_bic = current_bic[0]            
 
             iters = 1
-            while real_bic - best_bic > 0.1:
+            while real_bic - best_bic > 0.01:
                 iters += 1
                 current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3]*3)
 

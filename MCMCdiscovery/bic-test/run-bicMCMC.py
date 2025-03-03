@@ -49,12 +49,13 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic = CausalMCMC(samples, MCMC_iterations, start_from_GES = False)
+    edge_array, partition, bic, found_iter, _ = CausalMCMC(samples, MCMC_iterations, start_from_GES = False, debug=True)
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
+    print("Found on iteration:", found_iter)
     print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
     print("The found DAG with correct coloring gives BIC:", utils.score_DAG(samples, edge_array, real_partition))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))

@@ -217,8 +217,6 @@ def MCMC_iteration(samples, edge_array, partition, score_info, sorted_edges, mov
 
 # For moves
 def change_partiton(partition):
-    num_nodes = sum(len(x) for x in partition)
-
     node_to_change = random.randrange(num_nodes)
     old_color = None
     other_colors = []
@@ -331,7 +329,7 @@ def score_DAG(samples, edge_array, partition):
 
     # Calculate ML-eval of the different color omegas
     omegas_ML = [None] * len(partition)
-    bic_decomp = [0]*len(partition)
+    bic_decomp = [0] * len(partition)
 
     for i, part in enumerate(partition):
         if len(part) == 0:
@@ -347,7 +345,7 @@ def score_DAG(samples, edge_array, partition):
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for x in partition if len(x)>0) + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
@@ -359,11 +357,11 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     # Edge ML is the same
     edges_ML = last_change_data[0]
 
+
     # Node ML needs local update
     omegas_ML = last_change_data[1].copy()
     
     node, old_color, new_color = last_change_data[3]
-
     parents = utils.get_parents(node, edge_array)
     node_ml_contribution = np.linalg.norm(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:])**2
 
@@ -382,7 +380,6 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     omegas_ML[new_color] = tot / (num_samples * len(partition[new_color]))
 
 
-
     # Calculate BIC
     bic_decomp = last_change_data[2].copy()
 
@@ -394,7 +391,7 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for x in partition if len(x)>0) + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
@@ -434,16 +431,14 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     omegas_ML[current_color] = tot / (num_samples * len(part))
 
 
-
     # Calculate BIC
     bic_decomp = last_change_data[2].copy()
     bic_decomp[current_color] = -len(part) * (np.log(omegas_ML[current_color]) + 1)
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for x in partition if len(x)>0) + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
-
 
 
 

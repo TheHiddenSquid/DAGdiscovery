@@ -32,114 +32,121 @@ def CausalTabuSearch(samples, num_iters):
     best_partition = copy.deepcopy(partition)
     best_bic = score_info[0]
     best_iter = 0
-
+    fails = 0
 
     # Run MCMC iters    
     for i in range(num_iters):
-        A, partition, score_info, sorted_edges = iteration(samples, A, partition, score_info, sorted_edges)    
+        A, partition, score_info, sorted_edges, fail = iteration(samples, A, partition, score_info, sorted_edges)
         if score_info[0] > best_bic:
             best_A = A.copy()
             best_partition = utils.sorted_partition(partition)
             best_bic = score_info[0]
             best_iter = i
+        fails += fail
 
-    return best_A, best_partition, best_bic, best_iter
+    return best_A, best_partition, best_bic, best_iter, fails
     
 
 
 def iteration(samples, edge_array, partition, score_info, sorted_edges):
     
-    edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
-    num_edges = len(edges_in_DAG)
+    move = None
+    saved_edge = None
+    best_edge_array = None
+    best_partition = None
+    best_score_info = None
+   
+    edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
 
 
-    # Check what moves are possible and pick one at random
+    # Check all neighboring colorings
+    for node in range(num_nodes):
+        old_color = None
+        other_colors = []
 
-    
-    moves = [ "change_color", "add_edge", "remove_edge"]
-    weights = [1/3]*3
+        for i, part in enumerate(partition):
+            if node in part:
+                old_color = i
+            elif len(part) != 0:
+                other_colors.append(i)
+            else:
+                empty_color = i
 
-    if num_edges == 0:
-        weights[2] = 0  
-    elif len(edges_giving_DAGs) == 0 :
-        weights[1] = 0
+        if len(partition[old_color]) != 1:
+            other_colors.append(empty_color)
 
-
-    move = random.choices(moves, weights = weights, k = 1)[0]
-
-
-    # Create new colored DAG based on move
-    match move:
-        case "change_color":
-            partition, node, old_color, new_color = change_partiton(partition)
+        partition[old_color].remove(node)
+        for new_color in other_colors:
+            partition[new_color].add(node)
 
             potential_score_info = score_DAG_color_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
 
-        case "add_edge":
-            edge = random.choice(edges_giving_DAGs)
-            edge_array[edge] = 1
+            if best_score_info is None or potential_score_info[0] > best_score_info[0]:
+                best_partition = copy.deepcopy(partition)
+                best_score_info = potential_score_info
+                move = "change_color"
 
-            potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
-
-        case "remove_edge":
-            edge = random.choice(edges_in_DAG)
-            edge_array[edge] = 0
-
-            potential_sorted_edges = update_sorted_edges_REMOVE(edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-            potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+            partition[new_color].remove(node)
+        partition[old_color].add(node)
 
 
-    # Metropolis Hastings to accept or reject new colored DAG
-    if potential_score_info[0] > score_info[0]:
-        new_score_info = potential_score_info
+    # Check all potential edge adds
+    for edge in edges_giving_DAGs:
+        edge_array[edge] = 1
+        potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+        
+        if potential_score_info[0] > best_score_info[0]:
+            best_edge_array = edge_array.copy()
+            best_score_info = potential_score_info
+            move = "add_edge"
+            saved_edge = edge
+    
+        edge_array[edge] = 0
+
+
+    # Check all potential edge removals
+    for edge in edges_in_DAG:
+        edge_array[edge] = 0
+        potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+
+        if potential_score_info[0] > best_score_info[0]:
+            best_edge_array = edge_array.copy()
+            best_score_info = potential_score_info
+            move = "remove_edge"
+            saved_edge = edge
+        
+        edge_array[edge] = 1
+
+
+
+    # Do the best possible jump
+    if best_score_info[0] > score_info[0]:
+
+        new_score_info = best_score_info
 
         if move == "change_color":
+            new_edge_array = edge_array
+            new_partition = best_partition
             new_sorted_edges = sorted_edges
         elif move == "add_edge":
-            new_sorted_edges = update_sorted_edges_ADD(edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
+            new_edge_array = best_edge_array
+            new_partition = partition
+            new_sorted_edges = update_sorted_edges_ADD(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], saved_edge)
         elif move == "remove_edge":
-            new_sorted_edges = potential_sorted_edges
+            new_edge_array = best_edge_array
+            new_partition = partition
+            new_sorted_edges = update_sorted_edges_REMOVE(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], saved_edge)
 
+        fail = 0
     else:
-        if move == "change_color":
-            partition[new_color].remove(node)
-            partition[old_color].add(node)
-        elif move == "add_edge":
-            edge_array[edge] = 0
-        elif move == "remove_edge":
-            edge_array[edge] = 1
-
+        new_edge_array = edge_array
+        new_partition = partition
         new_score_info = score_info
         new_sorted_edges = sorted_edges
 
-
+        fail = 1
         
-    return edge_array, partition, new_score_info, new_sorted_edges
-
-
-
-# For moves
-def change_partiton(partition):
-    node_to_change = random.randrange(num_nodes)
-    old_color = None
-    other_colors = []
-
-    for i, part in enumerate(partition):
-        if node_to_change in part:
-            old_color = i
-        elif len(part) != 0:
-            other_colors.append(i)
-        else:
-            empty_color = i
-
-    if len(partition[old_color]) != 1:
-        other_colors.append(empty_color)
-
-    partition[old_color].remove(node_to_change)
-    new_color = random.choice(other_colors)
-    partition[new_color].add(node_to_change)
-
-    return partition, node_to_change, old_color, new_color
+    return new_edge_array, new_partition, new_score_info, new_sorted_edges, fail
 
     
 

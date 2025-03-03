@@ -19,7 +19,7 @@ def main():
     no_colors = 2
     edge_probability = 0.4
     sample_size = 1000
-    MCMC_iterations = 100_000
+    MCMC_iterations = 10_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
@@ -49,13 +49,14 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, found_iter = CausalTabuSearch(samples, MCMC_iterations)
+    edge_array, partition, bic, found_iter, fails = CausalTabuSearch(samples, MCMC_iterations)
 
 
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", found_iter)
+    print("Total fails:", fails)
     print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
     print("The found DAG with correct coloring gives BIC:", utils.score_DAG(samples, edge_array, real_partition))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))

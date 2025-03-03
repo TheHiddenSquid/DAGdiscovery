@@ -66,7 +66,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
             raise ValueError("Could not create DAG")
 
         # Every node has its own color
-        partition = [[i] for i in range(num_nodes)]
+        partition = [{i} for i in range(num_nodes)]
 
     else:
         # Fully random colored DAG
@@ -91,19 +91,21 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         best_A = A.copy()
         best_partition = copy.deepcopy(partition)
         best_bic = score_info[0]
+        best_iter = 0
         num_fails = 0
 
         # Run MCMC iters    
-        for _ in repeat(None, num_iters):
+        for i in range(num_iters):
             A, partition, score_info, sorted_edges, fail = MCMC_iteration(samples, A, partition, score_info, sorted_edges, move_weights)    
             if score_info[0] > best_bic:
                 best_A = A.copy()
                 best_partition = utils.sorted_partition(partition)
                 best_bic = score_info[0]
+                best_iter = i
             num_fails += fail
 
         if debug: 
-            return best_A, best_partition, best_bic, num_fails
+            return best_A, best_partition, best_bic, best_iter, num_fails
         else:
             return best_A, best_partition, best_bic
     

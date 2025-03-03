@@ -22,7 +22,7 @@ def main():
     MCMC_iterations = 100_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
-    real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
+    real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
 
 
     # Create plots

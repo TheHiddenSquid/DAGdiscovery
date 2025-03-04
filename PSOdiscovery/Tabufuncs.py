@@ -1,5 +1,6 @@
 import copy
 import random
+import time
 
 import numpy as np
 import utils
@@ -9,20 +10,24 @@ import utils
 def CausalTabuSearch(samples, num_iters):
     
     # Setup global variables
-    global visited
+    global tabu_visited
+    global tabu_looked_at
     global num_nodes
     global num_samples
     global BIC_constant
 
-    visited = set()
+    tabu_visited = set()
+    tabu_looked_at = set()
+
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
 
-    # Fully random colored DAG
+    # Begin with empty DAG
     A = np.zeros((num_nodes,num_nodes), dtype=np.int64)
     partition = [{i} for i in range(num_nodes)]
+    tabu_visited.add(hash_DAG(A, partition))
     
   
     # Setup for iters
@@ -38,7 +43,6 @@ def CausalTabuSearch(samples, num_iters):
 
     # Run MCMC iters    
     for i in range(num_iters):
-        print(i)
         A, partition, score_info, sorted_edges, fail = iteration(samples, A, partition, score_info, sorted_edges)
         if score_info[0] > best_bic:
             best_A = A.copy()
@@ -46,21 +50,17 @@ def CausalTabuSearch(samples, num_iters):
             best_bic = score_info[0]
             best_iter = i
         fails += fail
-        
-        h1 = A.tobytes()
-        h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
-        visited.add((h1,h2))
+        tabu_visited.add(hash_DAG(A, partition))
 
     return best_A, best_partition, best_bic, best_iter, fails
     
 
 
 def iteration(samples, edge_array, partition, score_info, sorted_edges):
-    
-    global visited
+    # Idea: generate a number and just save that as the potential random move
 
-    move = None
-    saved_edge = None
+    best_move = None
+    best_saved_edge = None
     best_edge_array = None
     best_partition = None
     best_score_info = None
@@ -88,12 +88,15 @@ def iteration(samples, edge_array, partition, score_info, sorted_edges):
         for new_color in other_colors:
             partition[new_color].add(node)
 
-            potential_score_info = score_DAG_color_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+            h = hash_DAG(edge_array, partition)
+            if h not in tabu_looked_at:
+                potential_score_info = score_DAG_color_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+                tabu_looked_at.add(h)
 
-            if best_score_info is None or potential_score_info[0] > best_score_info[0]:
-                best_partition = copy.deepcopy(partition)
-                best_score_info = potential_score_info
-                move = "change_color"
+                if best_score_info is None or potential_score_info[0] > best_score_info[0]:
+                    best_partition = copy.deepcopy(partition)
+                    best_score_info = potential_score_info
+                    best_move = "change_color"
 
 
             partition[new_color].remove(node)
@@ -103,13 +106,17 @@ def iteration(samples, edge_array, partition, score_info, sorted_edges):
     # Check all potential edge adds
     for edge in edges_giving_DAGs:
         edge_array[edge] = 1
-        potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
-        
-        if potential_score_info[0] > best_score_info[0]:
-            best_edge_array = edge_array.copy()
-            best_score_info = potential_score_info
-            move = "add_edge"
-            saved_edge = edge
+
+        h = hash_DAG(edge_array, partition)
+        if h not in tabu_looked_at:
+            potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+            tabu_looked_at.add(h)
+
+            if best_score_info is None or potential_score_info[0] > best_score_info[0]:
+                best_edge_array = edge_array.copy()
+                best_score_info = potential_score_info
+                best_move = "add_edge"
+                best_saved_edge = edge
     
         edge_array[edge] = 0
 
@@ -117,48 +124,48 @@ def iteration(samples, edge_array, partition, score_info, sorted_edges):
     # Check all potential edge removals
     for edge in edges_in_DAG:
         edge_array[edge] = 0
-        potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
         
-        if potential_score_info[0] > best_score_info[0]:
-            best_edge_array = edge_array.copy()
-            best_score_info = potential_score_info
-            move = "remove_edge"
-            saved_edge = edge
+        h = hash_DAG(edge_array, partition)
+        if h not in tabu_looked_at:
+            potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+            tabu_looked_at.add(h)
+        
+            if best_score_info is None or potential_score_info[0] > best_score_info[0]:
+                best_edge_array = edge_array.copy()
+                best_score_info = potential_score_info
+                best_move = "remove_edge"
+                best_saved_edge = edge
         
         edge_array[edge] = 1
 
 
 
     # Do the best possible jump
-    fail = 0
 
-    if best_score_info[0] > score_info[0]:
 
+    if (best_score_info is None) or (best_score_info[0] < score_info[0]):
+        fail = 1
+        new_edge_array, new_partition, new_sorted_edges, new_score_info = make_random_move(samples, edge_array, partition, sorted_edges, score_info)
+    else:
+        fail = 0
         new_score_info = best_score_info
 
-        if move == "change_color":
+        if best_move == "change_color":
             new_edge_array = edge_array
             new_partition = best_partition
             new_sorted_edges = sorted_edges
-        elif move == "add_edge":
+        elif best_move == "add_edge":
             new_edge_array = best_edge_array
             new_partition = partition
-            new_sorted_edges = update_sorted_edges_ADD(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], saved_edge)
-        elif move == "remove_edge":
+            new_sorted_edges = update_sorted_edges_ADD(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
+        elif best_move == "remove_edge":
             new_edge_array = best_edge_array
             new_partition = partition
-            new_sorted_edges = update_sorted_edges_REMOVE(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], saved_edge)
+            new_sorted_edges = update_sorted_edges_REMOVE(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
 
-        h1 = new_edge_array.tobytes()
-        h2 = tuple(tuple(x) for x in utils.sorted_partition(new_partition))
-
-        if (h1,h2) in visited:
+        if hash_DAG(new_edge_array, new_partition) in tabu_visited:
             fail = 1
             new_edge_array, new_partition, new_sorted_edges, new_score_info = make_random_move(samples, edge_array, partition, sorted_edges, score_info)
-
-    else:
-        fail = 1
-        new_edge_array, new_partition, new_sorted_edges, new_score_info = make_random_move(samples, edge_array, partition, sorted_edges, score_info)
 
         
     return new_edge_array, new_partition, new_score_info, new_sorted_edges, fail
@@ -327,7 +334,6 @@ def score_DAG(samples, edge_array, partition):
 def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     samples = samples.T
     
-    
     # Edge ML is the same
     edges_ML = last_change_data[0]
 
@@ -372,7 +378,6 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
 
 def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     samples = samples.T
-    
 
     # Calculate ML-eval of the different lambdas
     edges_ML = last_change_data[0].copy()
@@ -416,6 +421,11 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
 
 
 
+def hash_DAG(edge_array, partition):
+    return (edge_array.tobytes(), tuple(tuple(x) for x in utils.sorted_partition(partition)))
+
+
+
 def main():
     pass
 
@@ -423,7 +433,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    main()
-    main()
-    main()
-    main()
+

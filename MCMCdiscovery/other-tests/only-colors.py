@@ -12,13 +12,15 @@ from MCMCfuncs import CausalMCMC, score_DAG
 
 
 def main():
+    random.seed(3)
+    np.random.seed(3)
     no_nodes = 8
-    no_colors = 8
-    edge_probability = 0.4
+    no_colors = 4
+    sparse = True
     sample_size = 1000
     MCMC_iterations = 100_000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
 

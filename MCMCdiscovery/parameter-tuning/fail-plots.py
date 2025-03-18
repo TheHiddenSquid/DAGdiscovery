@@ -21,9 +21,9 @@ def test3d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
         np.random.seed(2)
         num_nodes = 6
         num_colors = 3
-        edge_probability = 0.3
+        sparse = True
 
-        _, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, edge_probability)
+        _, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, sparse)
         samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
         
@@ -85,9 +85,9 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
         np.random.seed(2)
         no_nodes = 6
         no_colors = 3
-        edge_probability = 0.3
+        sparse = True
 
-        _, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+        _, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
         samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
         

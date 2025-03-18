@@ -1,15 +1,16 @@
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-import networkx as nx
-import numpy as np
 import random
 import sys
+
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+
 sys.path.append("../")
-from MCMCfuncs import MCMC_iteration
-from MCMCfuncs import score_DAG
-from MCMCfuncs import get_sorted_edges
-import utils
 from collections import defaultdict
+
+import utils
+from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
 
 
 def get_all_3node_DAGs(color = False):
@@ -41,10 +42,10 @@ def main():
     # General setup
     num_nodes = 3
     num_colors = 3
-    edge_probability = 0.5
+    sparse = True
     sample_size = 1000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, sparse)
     real_A = np.array(real_lambda_matrix != 0, dtype="int")
     samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 

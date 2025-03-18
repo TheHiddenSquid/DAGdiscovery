@@ -13,7 +13,7 @@ def main():
     random.seed(1)
     np.random.seed(1)
     no_colors = 3
-    edge_probability = 0.3
+    sparse = True
     sample_size = 1000
     
 
@@ -29,7 +29,7 @@ def main():
         best_iters = []
         print(num_nodes)
         for _ in range(num_chains):
-            real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, no_colors, edge_probability)
+            real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, no_colors, sparse)
             real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
             samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 

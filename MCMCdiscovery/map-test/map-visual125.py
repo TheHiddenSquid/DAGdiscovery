@@ -42,10 +42,10 @@ def main():
     np.random.seed(3)
     num_nodes = 3
     num_colors = 3
-    edge_probability = 0.5
+    sparse = True
     sample_size = 1_000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, sparse)
     real_A = np.array(real_lambda_matrix != 0, dtype="int")
     real_partition = utils.sorted_partition(real_partition)
     real_tuple_P = tuple(tuple(x) for x in real_partition)
@@ -119,7 +119,7 @@ def main():
     
 
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), p)[0] for (x,p) in dags]
-    node_size = [2*np.exp(2*x) for x in allbics]
+    node_size = [6*np.exp(2*x) for x in allbics]
 
     print("postive:", sum(1 for x in allbics if x>0))
     print("negative:", sum(1 for x in allbics if x<0))

@@ -14,11 +14,11 @@ from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
 def main():
     no_nodes = 6
     no_colors = 4
-    edge_probability = 0.3
+    sparse = True
     sample_size = 1000
     start_with_GES_DAG = False
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
     global samples

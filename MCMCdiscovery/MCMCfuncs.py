@@ -70,8 +70,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
 
     else:
         # Fully random colored DAG
-        partition, A, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
-        A = np.array(A != 0, dtype=np.int64)
+        A = utils.get_random_DAG(num_nodes, sparse=True)
         partition = [{i} for i in range(num_nodes)]
     
 

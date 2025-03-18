@@ -15,13 +15,13 @@ from Tabufuncs import CausalTabuSearch
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 5
-    no_colors = 2
-    edge_probability = 0.4
+    no_nodes = 8
+    no_colors = 3
+    sparse = True
     sample_size = 1000
-    MCMC_iterations = 1_000
+    num_iterations = 10_000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
 
 
@@ -49,10 +49,10 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, found_iter, fails = CausalTabuSearch(samples, MCMC_iterations)
+    edge_array, partition, bic, found_iter, fails = CausalTabuSearch(samples, num_iterations)
 
 
-    print(f"Ran MCMC for {MCMC_iterations} iterations")
+    print(f"Ran MCMC for {num_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", found_iter)

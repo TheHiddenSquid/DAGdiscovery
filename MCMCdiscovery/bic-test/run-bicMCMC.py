@@ -15,15 +15,14 @@ from MCMCfuncs import CausalMCMC
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 5
-    no_colors = 2
-    edge_probability = 0.4
+    no_nodes = 6
+    no_colors = 3
+    sparse = True
     sample_size = 1000
-    MCMC_iterations = 100_000
+    MCMC_iterations = 300_000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_probability)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
-
 
     # Create plots
     fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)

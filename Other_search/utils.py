@@ -5,46 +5,42 @@ import numpy as np
 from scipy import stats
 from scipy.optimize import linear_sum_assignment
 
+
 # DAG generation
-
-def generate_colored_DAG(no_nodes, no_colors, edge_probability):
+def get_random_DAG(num_nodes, sparse = False):
+    edge_array = np.zeros((num_nodes, num_nodes), dtype=np.int64)
     
-    # Add edges and make sure it is a DAG
-    G = nx.DiGraph()
-    nodes = [*range(no_nodes)]
-    random.shuffle(nodes)
+    for _ in range(100 * num_nodes**2):
+        edge = (random.randrange(num_nodes), random.randrange(num_nodes))
+        if edge_array[edge] == 1:
+            edge_array[edge] = 0
+        else:
+            if sparse and np.sum(edge_array) >= 1.5*num_nodes:
+                continue
+            tmp = edge_array.copy()
+            tmp[edge] = 1
+            if is_DAG(tmp):
+                edge_array = tmp
+    
+    return edge_array
 
-    for node in nodes:
-        G.add_node(node)
-        others = [*range(no_nodes)]
-        others.remove(node)
-        random.shuffle(others)
-
-        for other in others:
-            if random.random() < edge_probability:
-                if random.random() < 0.5:
-                    G.add_edge(node, other)
-                    if not nx.is_directed_acyclic_graph(G):
-                        G.remove_edge(node, other)
-                else:
-                    G.add_edge(other, node)
-                    if not nx.is_directed_acyclic_graph(G):
-                        G.remove_edge(other, node)
-
-
+def generate_colored_DAG(num_nodes, num_colors, sparse = False):
+    
     # Create partition for colors
-    partition = generate_random_partition(no_nodes, no_colors)
+    partition = generate_random_partition(num_nodes, num_colors)
 
     # Generate lambda matrix
-    lambda_matrix = nx.adjacency_matrix(G).todense().astype("float64")
-    for i in range(no_nodes):
-        for j in range(no_nodes):
+    lambda_matrix = get_random_DAG(num_nodes, sparse)
+    lambda_matrix = lambda_matrix.astype(np.float64)
+
+    for i in range(num_nodes):
+        for j in range(num_nodes):
             if lambda_matrix[i,j] == 1:
                 lambda_matrix[i,j] = random.uniform(-1,1)
 
     # Generate omega matrix
-    choices = [random.random() for _ in range(no_colors)]
-    omega_matrix = [None] * no_nodes
+    choices = [random.random() for _ in range(num_colors)]
+    omega_matrix = [None] * num_nodes
     for i, part in enumerate(partition):
         for node in part:
             omega_matrix[node] = choices[i]
@@ -200,4 +196,6 @@ def generate_color_map(P):
             color_map[node] = colors[i]
 
     return color_map
+
+
 

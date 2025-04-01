@@ -7,7 +7,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs_new import MCMC_iteration, score_DAG
+from MCMCfuncs import MCMC_iteration, score_DAG
 
 
 def main():

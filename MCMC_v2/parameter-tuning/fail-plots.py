@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 sys.path.append("../")
-import MCMCfuncs_new
+import MCMCfuncs
 import utils
 
 
@@ -34,7 +34,7 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
             np.random.seed(2)
             s = i/resolution
             print(s)
-            _, _, _, _, fails = MCMCfuncs_new.CausalMCMC(samples, MCMCiterations, move_weights=[1-s,s], debug=True)
+            _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[1-s,s], debug=True)
             y[i] = fails/MCMCiterations
             
         if savefile is not None:

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 sys.path.append("../")
-import MCMCfuncs
+import MCMCfuncs_new
 import utils
 
 
@@ -17,7 +17,7 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
     else:
         random.seed(2)
         np.random.seed(2)
-        no_nodes = 20
+        no_nodes = 6
         no_colors = 3
         sparse = True
 
@@ -34,7 +34,7 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
             np.random.seed(2)
             s = i/resolution
             print(s)
-            _, _, _, _, fails = MCMCfuncs.CausalMCMC(samples, MCMCiterations, move_weights=[1-s,s], debug=True)
+            _, _, _, _, fails = MCMCfuncs_new.CausalMCMC(samples, MCMCiterations, move_weights=[1-s,s], debug=True)
             y[i] = fails/MCMCiterations
             
         if savefile is not None:
@@ -47,9 +47,9 @@ def test2d(resolution, sample_size, MCMCiterations, savefile=None, loadfile=None
     x = np.linspace(0,1,end)
 
     plt.plot(x[1:end-1],y[1:end-1])
-    plt.xlabel("P(change_color)")
-    plt.ylabel("fails")
-    plt.title("20 nodes")
+    plt.xlabel(r"$\pi$")
+    plt.ylabel(r"% fails")
+    plt.title(f"Metropolis fails: 6 nodes")
     plt.show()
 
 
@@ -59,9 +59,8 @@ def main():
     #save = "2d6nodes.pkl"
 
 
-    load1 = "2d6nodes.pkl"
-    load2 = "2d20nodes.pkl"
-    test2d(resolution = 50, sample_size = 1000, MCMCiterations = 10_000, savefile=save, loadfile=None)
+    load2 = "20nodes.pkl"
+    test2d(resolution = 40, sample_size = 100, MCMCiterations = 50_000, savefile=save, loadfile=load2)
 
 
     

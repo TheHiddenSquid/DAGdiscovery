@@ -7,22 +7,22 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs import MCMC_iteration, score_DAG
+from MCMCfuncs_new import MCMC_iteration, score_DAG
 
 
 def main():
     random.seed(1)
     np.random.seed(1)
-    num_nodes = 20
+    num_nodes = 6
     num_colors = 3
     sparse = True
     sample_size = 1000
 
 
     # RUN MCM
-    MCMC_iterations = 10_000
+    MCMC_iterations = 100_000
     num_chains = 10
-    param_list = [0.001, 0.05, 0.1, 0.2, 0.5, 0.8, 0.9, 0.95, 0.999]
+    param_list = [0.001, 0.05, 0.2, 0.5, 0.8, 0.95, 0.999]
     num_params = len(param_list)
     
     chain_rolling_best_bic = [[] for _ in range(num_params)]
@@ -74,7 +74,7 @@ def main():
     plt.xlabel("iterations")
     plt.ylabel("true bic - best bic")
     plt.legend()
-    plt.title("Convergence speed (20 nodes)")
+    plt.title("Convergence speed (6 nodes)")
     plt.show()
 
     

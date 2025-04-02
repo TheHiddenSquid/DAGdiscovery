@@ -79,10 +79,9 @@ def main():
     pos = nx.spectral_layout(G)
     
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
-    node_size = [20*np.exp(2*x) for x in allbics]
+    node_size = [300*x for x in allbics]
+    print(sorted(allbics))
     print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 25")
-    
-   
 
 
     # setup for MCMC
@@ -114,7 +113,7 @@ def main():
         global current_node
 
         ax.clear()
-        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
+        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
 
         A = current_edge_array.astype("int")
         labels[dags.index(A.tobytes())] += 1

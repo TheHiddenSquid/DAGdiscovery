@@ -121,7 +121,9 @@ def main():
 
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), p)[0] for (x,p) in dags]
     node_size = [6*np.exp(2*x) for x in allbics]
+    node_size = [300*x for x in allbics]
 
+    print(sorted(allbics))
     print("postive:", sum(1 for x in allbics if x>0))
     print("negative:", sum(1 for x in allbics if x<0))
     print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 125")
@@ -160,7 +162,7 @@ def main():
         global current_node
 
         ax.clear()
-        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
+        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
 
         A = current_edge_array.astype("int")
         current_partition_tuple = tuple(tuple(x) for x in utils.sorted_partition(current_partition))

@@ -167,14 +167,7 @@ def MCMC_iteration(samples, edge_array, partition, score_info, move_weights):
             partition[new_color].remove(node)
             partition[old_color].add(node)
         elif move == "change_edge":
-            if edge_array[edge] == 1:
-                edge_array[edge] = 0
-            else:
-                tmp = edge_array.copy()
-                tmp[edge] = 1
-                if utils.is_DAG(tmp):
-                    edge_array = tmp
-
+            edge_array[edge] = 1 - edge_array[edge]
 
         new_score_info = score_info
         failed = 1

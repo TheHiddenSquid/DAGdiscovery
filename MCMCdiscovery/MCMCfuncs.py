@@ -17,13 +17,13 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
     
     # Check that wieghts are legal
     if move_weights is not None:
-        if len(move_weights) != 3:
+        if len(move_weights) != 2:
             raise ValueError("Lenght of weights must be 3")
-        p_change_color, p_add, p_remove = move_weights
-        if p_change_color<0 or p_add<0 or p_remove<0 or not np.isclose(sum(move_weights),1):
+        p_change_color, p_change_edge = move_weights
+        if p_change_color<0 or p_change_edge<0 or not np.isclose(sum(move_weights),1):
             raise ValueError("Invalid move probabilities")
     else:
-        move_weights = [1/3]*3
+        move_weights = [1/2]*2
 
     
     # Setup global variables
@@ -82,7 +82,6 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
 
 
     # Setup for iters
-    sorted_edges = get_sorted_edges(A)
     score_info = score_DAG(samples, A, partition)
 
 
@@ -95,7 +94,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, partition, score_info, sorted_edges, fail = MCMC_iteration(samples, A, partition, score_info, sorted_edges, move_weights)    
+            A, partition, score_info, fail = MCMC_iteration(samples, A, partition, score_info, move_weights)    
             if score_info[0] > best_bic:
                 best_A = A.copy()
                 best_partition = utils.sorted_partition(partition)
@@ -116,7 +115,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         # Run MCMC iters    
         for _ in repeat(None, num_iters):
 
-            A, partition, score_info, sorted_edges, fail = MCMC_iteration(samples, A, partition, score_info, sorted_edges, move_weights)
+            A, partition, score_info, fail = MCMC_iteration(samples, A, partition, score_info, move_weights)
 
             h1 = A.tobytes()
             h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
@@ -140,79 +139,59 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
     
 
 
-def MCMC_iteration(samples, edge_array, partition, score_info, sorted_edges, move_weights):
-    
-    edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs = sorted_edges
-    num_edges = len(edges_in_DAG)
-
-
+def MCMC_iteration(samples, edge_array, partition, score_info, move_weights):
     # Check what moves are possible and pick one at random
-    p_change_color, p_add, p_remove = move_weights
-    
-    moves = [ "change_color", "add_edge", "remove_edge"]
-    weights = move_weights.copy()
 
-    if num_edges == 0:
-        weights[2] = 0  
-    elif len(edges_giving_DAGs) == 0 :
-        weights[1] = 0
-
-    move = random.choices(moves, weights = weights, k = 1)[0]
-
+    moves = [ "change_color", "change_edge"]
+    move = random.choices(moves, weights=move_weights)[0]
 
     # Create new colored DAG based on move
     match move:
         case "change_color":
             partition, node, old_color, new_color = change_partiton(partition)
 
-            q_quotient = 1
             potential_score_info = score_DAG_color_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
 
-        case "add_edge":
-            edge = random.choice(edges_giving_DAGs)
-            edge_array[edge] = 1
+        case "change_edge":
+            while True:
+                edge = (random.randrange(num_nodes), random.randrange(num_nodes))
 
-            old_num_addible_edges = len(edges_giving_DAGs)
-            q_quotient = (p_remove*old_num_addible_edges) / (p_add*(num_edges+1))
-            potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
-
-        case "remove_edge":
-            edge = random.choice(edges_in_DAG)
-            edge_array[edge] = 0
-
-            potential_sorted_edges = update_sorted_edges_REMOVE(edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-            new_num_addible_edges = len(potential_sorted_edges[1])
-            q_quotient = (p_add*num_edges) / (p_remove*new_num_addible_edges)
+                if edge_array[edge] == 1:
+                    edge_array[edge] = 0
+                    break
+                else:
+                    tmp = edge_array.copy()
+                    tmp[edge] = 1
+                    if utils.is_DAG(tmp):
+                        edge_array = tmp
+                        break
+        
             potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
 
 
     # Metropolis Hastings to accept or reject new colored DAG
-    if random.random() <= np.exp(potential_score_info[0] - score_info[0]) * q_quotient:
+    if random.random() <= np.exp(potential_score_info[0] - score_info[0]):
         new_score_info = potential_score_info
-
-        if move == "change_color":
-            new_sorted_edges = sorted_edges
-        elif move == "add_edge":
-            new_sorted_edges = update_sorted_edges_ADD(edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-        elif move == "remove_edge":
-            new_sorted_edges = potential_sorted_edges
-
         failed = 0
     else:
         if move == "change_color":
             partition[new_color].remove(node)
             partition[old_color].add(node)
-        elif move == "add_edge":
-            edge_array[edge] = 0
-        elif move == "remove_edge":
-            edge_array[edge] = 1
+        elif move == "change_edge":
+            if edge_array[edge] == 1:
+                edge_array[edge] = 0
+            else:
+                tmp = edge_array.copy()
+                tmp[edge] = 1
+                if utils.is_DAG(tmp):
+                    edge_array = tmp
+
 
         new_score_info = score_info
-        new_sorted_edges = sorted_edges
         failed = 1
 
-        
-    return edge_array, partition, new_score_info, new_sorted_edges, failed
+    
+    return edge_array, partition, new_score_info, failed
 
 
 
@@ -240,74 +219,6 @@ def change_partiton(partition):
     return partition, node_to_change, old_color, new_color
 
     
-
-# For edge lookups
-
-def get_sorted_edges(edge_array):
-  
-    tmp_edge_array = edge_array.copy()
-    n = np.shape(tmp_edge_array)[0]
-
-    edges_in_DAG = []
-    edges_giving_DAGs = []
-    edges_not_giving_DAGs = []
-    for i in range(n):
-        for j in range(n):
-            if i == j:
-                continue
-            if tmp_edge_array[i, j] == 1:
-                edges_in_DAG.append((i,j))
-                continue
-
-            tmp_edge_array[i, j] = 1
-            if utils.is_DAG(tmp_edge_array):
-                edges_giving_DAGs.append((i,j))
-            else:
-                edges_not_giving_DAGs.append((i,j))
-            tmp_edge_array[i,j] = 0
-
-    return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
-
-def update_sorted_edges_REMOVE(edge_array, edges_in, addable_edges, not_addable_edges, removed_edge):
-    
-    tmp_edge_array = edge_array.copy()
-
-    edges_in_DAG = edges_in.copy()
-    edges_in_DAG.remove(removed_edge)
-
-    edges_giving_DAGs = addable_edges.copy() + [removed_edge]
-    edges_not_giving_DAGs = []
-
-    for edge in not_addable_edges:
-        tmp_edge_array[edge] = 1
-        if utils.is_DAG(tmp_edge_array):
-            edges_giving_DAGs.append(edge)
-        else:
-            edges_not_giving_DAGs.append(edge)
-        tmp_edge_array[edge] = 0
-
-    return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
-
-def update_sorted_edges_ADD(edge_array, edges_in, addable_edges, not_addable_edges, added_edge):
-
-    tmp_edge_array = edge_array.copy()
-
-    edges_in_DAG = edges_in.copy() + [added_edge]
-    edges_giving_DAGs = []
-    edges_not_giving_DAGs = not_addable_edges.copy()
-
-    for edge in addable_edges:
-        if edge == added_edge:
-            continue
-
-        tmp_edge_array[edge] = 1
-        if utils.is_DAG(tmp_edge_array):
-            edges_giving_DAGs.append(edge)
-        else:
-            edges_not_giving_DAGs.append(edge)
-        tmp_edge_array[edge] = 0
-
-    return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
 
 

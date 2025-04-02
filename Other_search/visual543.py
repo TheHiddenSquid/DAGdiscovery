@@ -10,27 +10,19 @@ sys.path.append("../")
 from collections import defaultdict
 
 import utils
-from MCMCfuncs import MCMC_iteration, score_DAG
-from utils import get_sorted_edges
+from Tabufuncs import CausalTabuSearch, get_sorted_edges, iteration, score_DAG
 
 
-def get_all_3node_DAGs(color = False):
+def get_all_4node_DAGs():
     AllDAGs = defaultdict(lambda: 0)
-    i = 0
-    if color == True:
-        cap = 125
-    else:
-        cap = 25
+    cap = 543
+    #cap = 300
 
     while len(AllDAGs) < cap:
-        partition, A, _ = utils.generate_colored_DAG(3,3, random.random())
-        A = np.array(A != 0, dtype="int")
+        print(len(AllDAGs))
+        A = utils.get_random_DAG(4)
         h1 = A.tobytes()
-        if color == True:
-            h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
-            AllDAGs[(h1,h2)] += 1
-        else:
-            AllDAGs[h1] += 1
+        AllDAGs[h1] += 1
 
     dags = list(AllDAGs.keys())
     dags.sort()
@@ -41,7 +33,7 @@ def main():
     random.seed(8)
     np.random.seed(8)
     # General setup
-    num_nodes = 3
+    num_nodes = 4
     num_colors = 3
     sparse = True
     sample_size = 1000
@@ -53,12 +45,11 @@ def main():
 
     # setup for hypergraph
     global dags
-    dags = get_all_3node_DAGs(color = False)
+    dags = get_all_4node_DAGs()
 
-
-    edge_array = np.zeros((25,25), dtype="int")
+    edge_array = np.zeros((543,543), dtype="int")
     for i, DAG in enumerate(dags):
-        A = np.reshape(np.frombuffer(DAG, dtype="int"), (3,3))
+        A = np.reshape(np.frombuffer(DAG, dtype="int"), (4,4))
         
         edges_in, edges_giving, _ = get_sorted_edges(A)
 
@@ -78,9 +69,9 @@ def main():
     G = nx.Graph(edge_array)
     pos = nx.spectral_layout(G)
     
-    allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
-    node_size = [20*np.exp(2*x) for x in allbics]
-    print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 25")
+    allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (4,4)), real_partition)[0] for x in dags]
+    node_size = [100*np.exp(2*x) for x in allbics]
+    print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 543")
     
    
 
@@ -92,36 +83,40 @@ def main():
     def init():
         global current_edge_array
         global current_partition
+        global current_sorted_edges
         global current_bic
         global labels
-        current_edge_array = np.zeros((3,3))
+        current_edge_array = np.zeros((4,4))
         current_partition = real_partition.copy()
+        current_sorted_edges = get_sorted_edges(current_edge_array)
         current_bic = score_DAG(samples, current_edge_array, current_partition)
+        CausalTabuSearch(samples, 0)
 
-        labels = {i:0 for i in range(25)}
+        labels = {i:0 for i in range(543)}
         labels[0] = 1
-        colors = ["lightsteelblue" for _ in range(25)]
+        colors = ["lightsteelblue" for _ in range(543)]
         colors[dags.index(real_A.tobytes())] = "gold"
         colors[0] = "lightpink"
-        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size)
+        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size, width=0.1)
 
 
     def update(frame):
         global labels
         global current_edge_array
         global current_partition
+        global current_sorted_edges
         global current_bic
         global current_node
 
         ax.clear()
-        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
+        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, moves=[0,1])
 
         A = current_edge_array.astype("int")
         labels[dags.index(A.tobytes())] += 1
-        colors = ["lightsteelblue" for _ in range(25)]
+        colors = ["lightsteelblue" for _ in range(543)]
         colors[dags.index(real_A.tobytes())] = "gold"
         colors[dags.index(A.tobytes())] = "lightpink"
-        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size)
+        nx.draw(G, pos=pos, labels=labels, node_color=colors, with_labels=True, node_size=node_size, width=0.1)
 
 
     ani = animation.FuncAnimation(fig=fig, func=update, frames=10_000, interval=10, init_func=init)

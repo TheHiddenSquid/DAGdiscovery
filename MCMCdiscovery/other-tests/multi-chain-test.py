@@ -9,7 +9,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
+from MCMCfuncs import MCMC_iteration, score_DAG
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     no_colors = 3
     sparse = True
     sample_size = 1000
-    MCMC_iterations = 50_000
+    MCMC_iterations = 100_000
     start_with_GES_DAG = True
     no_chains = 3
 
@@ -113,14 +113,13 @@ def main():
         current_edge_array = initial_edge_array.copy()
         current_partition = initial_partition.copy()
         current_bic = initial_bic.copy()
-        current_sorted_edges = get_sorted_edges(current_edge_array)
 
         bics = [initial_bic[0]]
         cumsum = [initial_bic[0]]
 
         for i in range(MCMC_iterations):
 
-            current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3,1/3,1/3])
+            current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
 
             if current_bic[0] > best_bic:
                 best_edge_array = current_edge_array.copy()

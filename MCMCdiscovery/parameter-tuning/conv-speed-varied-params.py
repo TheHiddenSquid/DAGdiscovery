@@ -7,54 +7,53 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
+from MCMCfuncs import MCMC_iteration, score_DAG
 
 
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 20
-    no_colors = 3
+    num_nodes = 6
+    num_colors = 3
     sparse = True
     sample_size = 1000
 
 
     # RUN MCM
-    MCMC_iterations = 10_000
+    MCMC_iterations = 100_000
     num_chains = 10
-    param_list = [0.001, 0.05, 0.1, 0.2, 0.3, 0.4, 0.45, 0.499]
+    param_list = [0.001, 0.05, 0.2, 0.5, 0.8, 0.95, 0.999]
     num_params = len(param_list)
     
     chain_rolling_best_bic = [[] for _ in range(num_params)]
 
     for i in range(num_chains):
         print(i)
-        real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
+        real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_colors, sparse)
         real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
         samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
         real_bic = score_DAG(samples, real_edge_array, real_partition)[0]
 
-        start_partition, start_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
+        start_partition, start_edge_array, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
         start_edge_array = np.array(start_edge_array != 0, dtype="int")
 
         for j in range(num_params):
             print(j)
             
-            params = [1-2*param_list[j], param_list[j], param_list[j]]
+            params = [1-param_list[j], param_list[j]]
 
             current_partition = copy.deepcopy(start_partition)
             current_edge_array = start_edge_array.copy()
 
             current_bic = score_DAG(samples, current_edge_array, current_partition)
-            current_sorted_edges = get_sorted_edges(current_edge_array)
 
             best_bic = current_bic[0]
             rolling_best_bic = [best_bic,best_bic]
             
 
             for k in range(MCMC_iterations):
-                current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, move_weights=params)
+                current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, move_weights=params)
 
                 best_bic = max(best_bic, current_bic[0])
                 rolling_best_bic.append(real_bic-best_bic)
@@ -74,9 +73,8 @@ def main():
 
     plt.xlabel("iterations")
     plt.ylabel("true bic - best bic")
-    plt.ylim((0,20))
     plt.legend()
-    plt.title("Convergence speed (20 nodes)")
+    plt.title("Convergence speed (6 nodes)")
     plt.show()
 
     

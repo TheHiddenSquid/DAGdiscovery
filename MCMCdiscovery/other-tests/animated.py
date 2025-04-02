@@ -8,7 +8,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
+from MCMCfuncs import MCMC_iteration, score_DAG
 
 
 def main():
@@ -86,12 +86,10 @@ def main():
     # More MCMC setup
     global current_edge_array
     global current_partition
-    global current_sorted_edges
     global current_bic
 
     current_edge_array = initial_edge_array.copy()
     current_partition = initial_partition.copy()
-    current_sorted_edges = get_sorted_edges(current_edge_array)
     current_bic = score_DAG(samples, current_edge_array, current_partition)
 
     plt.axes(ax12)
@@ -121,11 +119,10 @@ def main():
         ax12.clear()
         global current_edge_array
         global current_partition
-        global current_sorted_edges
         global current_bic
         global samples
 
-        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3,1/3,1/3])
+        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
         
         G = nx.DiGraph(current_edge_array)
         nx.draw_circular(G, node_color=utils.generate_color_map(current_partition), with_labels=True)

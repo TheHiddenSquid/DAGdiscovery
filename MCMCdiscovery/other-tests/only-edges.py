@@ -17,7 +17,7 @@ def main():
     no_colors = 3
     sparse = True
     sample_size = 1000
-    MCMC_iterations = 10_000
+    MCMC_iterations = 100_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
@@ -47,7 +47,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic = CausalMCMC(samples, MCMC_iterations, move_weights = [0, 0.5, 0.5], start_from_GES = False, start_partition=real_partition)
+    edge_array, partition, bic = CausalMCMC(samples, MCMC_iterations, move_weights = [0, 1], start_from_GES = False, start_partition=real_partition)
 
 
     print("MCMC given the correct colors")

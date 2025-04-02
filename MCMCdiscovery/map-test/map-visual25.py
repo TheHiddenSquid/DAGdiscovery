@@ -10,7 +10,8 @@ sys.path.append("../")
 from collections import defaultdict
 
 import utils
-from MCMCfuncs import MCMC_iteration, get_sorted_edges, score_DAG
+from MCMCfuncs import MCMC_iteration, score_DAG
+from utils import get_sorted_edges
 
 
 def get_all_3node_DAGs(color = False):
@@ -91,12 +92,10 @@ def main():
     def init():
         global current_edge_array
         global current_partition
-        global current_sorted_edges
         global current_bic
         global labels
         current_edge_array = np.zeros((3,3))
         current_partition = real_partition.copy()
-        current_sorted_edges = get_sorted_edges(current_edge_array)
         current_bic = score_DAG(samples, current_edge_array, current_partition)
 
         labels = {i:0 for i in range(25)}
@@ -111,12 +110,11 @@ def main():
         global labels
         global current_edge_array
         global current_partition
-        global current_sorted_edges
         global current_bic
         global current_node
 
         ax.clear()
-        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges, [1/3,1/3,1/3])
+        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
 
         A = current_edge_array.astype("int")
         labels[dags.index(A.tobytes())] += 1

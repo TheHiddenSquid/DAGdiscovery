@@ -15,7 +15,7 @@ from Tabufuncs import CausalTabuSearch
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 8
+    no_nodes = 12
     no_colors = 3
     sparse = True
     sample_size = 1000

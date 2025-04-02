@@ -90,6 +90,30 @@ def get_parents(node, A):
             parents.append(i)
     return parents
 
+def get_sorted_edges(edge_array):
+  
+    tmp_edge_array = edge_array.copy()
+    n = np.shape(tmp_edge_array)[0]
+
+    edges_in_DAG = []
+    edges_giving_DAGs = []
+    edges_not_giving_DAGs = []
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+            if tmp_edge_array[i, j] == 1:
+                edges_in_DAG.append((i,j))
+                continue
+
+            tmp_edge_array[i, j] = 1
+            if is_DAG(tmp_edge_array):
+                edges_giving_DAGs.append((i,j))
+            else:
+                edges_not_giving_DAGs.append((i,j))
+            tmp_edge_array[i,j] = 0
+
+    return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
 def score_DAG(samples, edge_array, partition):
     samples = samples.T
@@ -196,6 +220,4 @@ def generate_color_map(P):
             color_map[node] = colors[i]
 
     return color_map
-
-
 

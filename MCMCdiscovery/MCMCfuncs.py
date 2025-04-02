@@ -7,7 +7,7 @@ import ges
 import numpy as np
 import utils
 
-# Main MCMC function
+# Main MCMC functions
 
 def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_from_GES = False, A0 = None, P0 = None, debug = False):
     """
@@ -22,7 +22,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
     num_iters : int, optional
         The number of MCMC iterations performed. Default is 50*4^p, where p is the number of variables.
         If p>8 default will take a very long time.
-    mode : [{bic', 'map'}*], optional
+    mode : [{'bic', 'map'}*], optional
         Option on what DAG the algorithm will return. If 'bic' it returns the DAG with the highest bic-score.
         If 'map' it returns the most visited DAG. Default is 'bic'.
     move_weights : [int, int], optional
@@ -36,7 +36,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
     P0 : [{int}*] optional
         The initial coloring partition on which the algorithm will run.
     debug : bool, optional
-        If true, returns extra values, such as number of failed jumps.
+        If true, returns extra values, such as number exact iteration best DAG was found and the number of failed jumps.
 
     Returns
     -------
@@ -64,14 +64,21 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
 
+    # Calculate number of iterations
     if num_iters is None:
         num_iters = 50 * 4**num_nodes
+        if num_nodes > 8:
+            print("Warning! Default number of iterations on more than 8 variables will take time")
     elif not isinstance(num_iters, int):
-        raise TypeError("num_iters needs to be an int (or default)")
+        raise TypeError("num_iters needs to be an int")
+    elif num_iters < 0:
+        raise ValueError("num_iters needs to be positive")
+
     
     # Check that mode is legal
     if mode not in ["bic", "map"]:
         raise ValueError("Mode not supported")
+    
     
     # Check that wieghts are legal
     if move_weights is not None:
@@ -83,7 +90,6 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
     else:
         move_weights = [0.4, 0.6]
 
-    
     
     # Perform optional setup
     if start_from_GES:
@@ -136,7 +142,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
 
     if mode == "bic":
         best_A = A.copy()
-        best_P = copy.deepcopy(P)
+        best_P = utils.sorted_partition(P)
         best_bic = score_info[0]
         best_iter = 0
         num_fails = 0
@@ -186,8 +192,6 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
         else:
             return best_A, best_P, num_visits
     
-
-
 def MCMC_iteration(samples, A, P, score_info, move_weights):
     # Check what moves are possible and pick one at random
 
@@ -268,21 +272,21 @@ def change_edge(A):
 
 
 # For DAG heuristic
-def score_DAG(samples, A, P):
-    samples = samples.T
+def score_DAG(data, A, P):
+    data = data.T
     
     global num_nodes
     global num_samples
     global BIC_constant
-    num_nodes = samples.shape[0]
-    num_samples = samples.shape[1]
+    num_nodes = data.shape[0]
+    num_samples = data.shape[1]
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
     # Calculate ML-eval of the different lambdas
     edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
     for i in range(num_nodes):
         parents = utils.get_parents(i, A)
-        ans = np.linalg.lstsq(samples[parents,:].T, samples[i,:].T, rcond=None)[0]
+        ans = np.linalg.lstsq(data[parents,:].T, data[i,:].T, rcond=None)[0]
         edges_ML[parents, i] = ans
 
     # Calculate ML-eval of the different color omegas
@@ -295,7 +299,7 @@ def score_DAG(samples, A, P):
         tot = 0
         for node in part:
             parents = utils.get_parents(node, A)
-            tot += np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
+            tot += np.dot(x:=(data[node,:] - edges_ML[parents,node].T @ data[parents,:]), x)
         omegas_ML[i] = tot / (num_samples * len(part))
 
 
@@ -308,8 +312,8 @@ def score_DAG(samples, A, P):
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
-def score_DAG_color_edit(samples, A, P, last_change_data):
-    samples = samples.T
+def score_DAG_color_edit(data, A, P, last_change_data):
+    data = data.T
     
     
     # Edge ML is the same
@@ -321,7 +325,7 @@ def score_DAG_color_edit(samples, A, P, last_change_data):
     
     node, old_color, new_color = last_change_data[3]
     parents = utils.get_parents(node, A)
-    node_ml_contribution = np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
+    node_ml_contribution = np.dot(x:=(data[node,:] - edges_ML[parents,node].T @ data[parents,:]), x)
 
     if len(P[old_color]) == 0:
         omegas_ML[old_color] = None
@@ -354,8 +358,8 @@ def score_DAG_color_edit(samples, A, P, last_change_data):
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
-def score_DAG_edge_edit(samples, A, P, last_change_data):
-    samples = samples.T
+def score_DAG_edge_edit(data, A, P, last_change_data):
+    data = data.T
     
 
     # Calculate ML-eval of the different lambdas
@@ -370,7 +374,7 @@ def score_DAG_edge_edit(samples, A, P, last_change_data):
         old_parents.append(new_parent)
 
     old_ml = edges_ML[old_parents, new_child]
-    new_ml = np.linalg.lstsq(samples[new_parents,:].T, samples[new_child,:].T, rcond=None)[0]
+    new_ml = np.linalg.lstsq(data[new_parents,:].T, data[new_child,:].T, rcond=None)[0]
     edges_ML[new_parents, new_child] = new_ml
 
 
@@ -384,8 +388,8 @@ def score_DAG_edge_edit(samples, A, P, last_change_data):
 
     part = P[current_color]
     tot = omegas_ML[current_color] * num_samples * len(part)
-    tot -= np.dot(x:=(samples[new_child,:] - old_ml.T @ samples[old_parents,:]), x)
-    tot += np.dot(x:=(samples[new_child,:] - new_ml.T @ samples[new_parents,:]), x)
+    tot -= np.dot(x:=(data[new_child,:] - old_ml.T @ data[old_parents,:]), x)
+    tot += np.dot(x:=(data[new_child,:] - new_ml.T @ data[new_parents,:]), x)
     omegas_ML[current_color] = tot / (num_samples * len(part))
 
 

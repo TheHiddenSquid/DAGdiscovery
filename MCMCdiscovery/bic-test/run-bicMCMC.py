@@ -13,8 +13,8 @@ from MCMCfuncs import CausalMCMC
 
 
 def main():
-    random.seed(1)
-    np.random.seed(1)
+    random.seed(2)
+    np.random.seed(2)
     no_nodes = 6
     no_colors = 3
     sparse = True
@@ -51,7 +51,7 @@ def main():
     edge_array, partition, bic, found_iter, _ = CausalMCMC(samples, MCMC_iterations, debug=True)
 
 
-    print(f"Ran MCMC for {MCMC_iterations} iterations")
+    print("Result of running causalMCMC")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", found_iter)

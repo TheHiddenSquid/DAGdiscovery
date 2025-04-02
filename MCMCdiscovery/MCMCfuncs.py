@@ -23,7 +23,7 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         if p_change_color<0 or p_change_edge<0 or not np.isclose(sum(move_weights),1):
             raise ValueError("Invalid move probabilities")
     else:
-        move_weights = [1/2]*2
+        move_weights = [0.4, 0.6]
 
     
     # Setup global variables
@@ -153,18 +153,7 @@ def MCMC_iteration(samples, edge_array, partition, score_info, move_weights):
             potential_score_info = score_DAG_color_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
 
         case "change_edge":
-            while True:
-                edge = (random.randrange(num_nodes), random.randrange(num_nodes))
-
-                if edge_array[edge] == 1:
-                    edge_array[edge] = 0
-                    break
-                else:
-                    tmp = edge_array.copy()
-                    tmp[edge] = 1
-                    if utils.is_DAG(tmp):
-                        edge_array = tmp
-                        break
+            edge_array, edge = change_edge(edge_array)
         
             potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
 
@@ -218,7 +207,21 @@ def change_partiton(partition):
 
     return partition, node_to_change, old_color, new_color
 
+def change_edge(edge_array):
+    while True:
+        edge = (random.randrange(num_nodes), random.randrange(num_nodes))
+
+        if edge_array[edge] == 1:
+            edge_array[edge] = 0
+            break
+        else:
+            tmp = edge_array.copy()
+            tmp[edge] = 1
+            if utils.is_DAG(tmp):
+                edge_array = tmp
+                break
     
+    return edge_array, edge
 
 
 

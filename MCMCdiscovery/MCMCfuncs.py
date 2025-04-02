@@ -9,8 +9,66 @@ import utils
 
 # Main MCMC function
 
-def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_weights = None, start_edge_array = None, start_partition = None, debug = False):
+def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_from_GES = False, A0 = None, P0 = None, debug = False):
+    """
+    Run MCMC to find the colored DAG that best fits the data. The data is assumed to be
+    centered.
 
+    Parameters
+    ----------
+    data : numpy.ndarray
+        The n x p array containing the observations,
+        where columns correspond to variables and rows to observations.
+    num_iters : int, optional
+        The number of MCMC iterations performed. Default is 50*4^p, where p is the number of variables.
+        If p>8 default will take a very long time.
+    mode : [{bic', 'map'}*], optional
+        Option on what DAG the algorithm will return. If 'bic' it returns the DAG with the highest bic-score.
+        If 'map' it returns the most visited DAG. Default is 'bic'.
+    move_weights : [int, int], optional
+        List of probability of changing a color versuis changing an edge. First value is color.
+        Default is [0.4, 0.6]
+    start_from_GES : bool, optional
+        Option to start the search at a random GES DAG.
+    A0 : numpy.ndarray, optional
+        The initial DAG on which the algorithm will run, where where `A0[i,j]
+        != 0` implies the edge `i -> j`.
+    P0 : [{int}*] optional
+        The initial coloring partition on which the algorithm will run.
+    debug : bool, optional
+        If true, returns extra values, such as number of failed jumps.
+
+    Returns
+    -------
+    estimate : numpy.ndarray
+        The adjacency matrix of the estimated CPDAG.
+    total_score : float
+        The score of the estimate.
+
+    Raises
+    ------
+    TypeError:
+        If the type of some of the parameters was not expected,
+        e.g. if data is not a numpy array.
+    ValueError:
+        If the value of some of the parameters is not appropriat.
+    """
+
+    # Setup global variables
+    global num_nodes
+    global num_samples
+    global BIC_constant
+
+    num_nodes = data.shape[1]
+    num_samples = data.shape[0]
+    BIC_constant = np.log(num_samples)/(num_samples*2)
+
+
+    if num_iters is None:
+        num_iters = 50 * 4**num_nodes
+    elif not isinstance(num_iters, int):
+        raise TypeError("num_iters needs to be an int (or default)")
+    
     # Check that mode is legal
     if mode not in ["bic", "map"]:
         raise ValueError("Mode not supported")
@@ -26,19 +84,10 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         move_weights = [0.4, 0.6]
 
     
-    # Setup global variables
-    global num_nodes
-    global num_samples
-    global BIC_constant
-
-    num_nodes = samples.shape[1]
-    num_samples = samples.shape[0]
-    BIC_constant = np.log(num_samples)/(num_samples*2)
-
-
+    
     # Perform optional setup
     if start_from_GES:
-        GES_edge_array = ges.fit_bic(data=samples)[0]
+        GES_edge_array = ges.fit_bic(data=data)[0]
 
         # Take an initial DAG from the given GES CPDAG
         A =  GES_edge_array.copy()
@@ -66,46 +115,46 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
             raise ValueError("Could not create DAG")
 
         # Every node has its own color
-        partition = [{i} for i in range(num_nodes)]
+        P = [{i} for i in range(num_nodes)]
 
     else:
         # Fully random colored DAG
         A = utils.get_random_DAG(num_nodes, sparse=True)
-        partition = [{i} for i in range(num_nodes)]
+        P = [{i} for i in range(num_nodes)]
     
 
-    if start_partition is not None:
-        partition = copy.deepcopy(start_partition)
+    if P0 is not None:
+        P = copy.deepcopy(P0)
 
-    if start_edge_array is not None:
-        A = start_edge_array
+    if A0 is not None:
+        A = A0
 
 
     # Setup for iters
-    score_info = score_DAG(samples, A, partition)
+    score_info = score_DAG(data, A, P)
 
 
     if mode == "bic":
         best_A = A.copy()
-        best_partition = copy.deepcopy(partition)
+        best_P = copy.deepcopy(P)
         best_bic = score_info[0]
         best_iter = 0
         num_fails = 0
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, partition, score_info, fail = MCMC_iteration(samples, A, partition, score_info, move_weights)    
+            A, P, score_info, fail = MCMC_iteration(data, A, P, score_info, move_weights)    
             if score_info[0] > best_bic:
                 best_A = A.copy()
-                best_partition = utils.sorted_partition(partition)
+                best_P = utils.sorted_partition(P)
                 best_bic = score_info[0]
                 best_iter = i
             num_fails += fail
 
         if debug: 
-            return best_A, best_partition, best_bic, best_iter, num_fails
+            return best_A, best_P, best_bic, best_iter, num_fails
         else:
-            return best_A, best_partition, best_bic
+            return best_A, best_P, best_bic
     
 
     if mode == "map":
@@ -115,10 +164,10 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         # Run MCMC iters    
         for _ in repeat(None, num_iters):
 
-            A, partition, score_info, fail = MCMC_iteration(samples, A, partition, score_info, move_weights)
+            A, P, score_info, fail = MCMC_iteration(data, A, P, score_info, move_weights)
 
             h1 = A.tobytes()
-            h2 = tuple(tuple(x) for x in utils.sorted_partition(partition))
+            h2 = tuple(tuple(x) for x in utils.sorted_partition(P))
 
             cashe[(h1,h2)] += 1
             num_fails += fail
@@ -130,32 +179,32 @@ def CausalMCMC(samples, num_iters, mode = "bic", start_from_GES = False, move_we
         best_A = np.frombuffer(best_A, dtype=np.int64)
         best_A = np.reshape(best_A, (num_nodes,num_nodes))
 
-        best_partition = [set(x) for x in most_visited[1]]
+        best_P = [set(x) for x in most_visited[1]]
 
         if debug: 
-            return best_A, best_partition, num_visits, num_fails
+            return best_A, best_P, num_visits, num_fails
         else:
-            return best_A, best_partition, num_visits
+            return best_A, best_P, num_visits
     
 
 
-def MCMC_iteration(samples, edge_array, partition, score_info, move_weights):
+def MCMC_iteration(samples, A, P, score_info, move_weights):
     # Check what moves are possible and pick one at random
 
-    moves = [ "change_color", "change_edge"]
+    moves = ["change_color", "change_edge"]
     move = random.choices(moves, weights=move_weights)[0]
 
     # Create new colored DAG based on move
     match move:
         case "change_color":
-            partition, node, old_color, new_color = change_partiton(partition)
+            P, node, old_color, new_color = change_partiton(P)
 
-            potential_score_info = score_DAG_color_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+            potential_score_info = score_DAG_color_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
 
         case "change_edge":
-            edge_array, edge = change_edge(edge_array)
+            A, edge = change_edge(A)
         
-            potential_score_info = score_DAG_edge_edit(samples, edge_array, partition, [score_info[1], score_info[2], score_info[3], edge])
+            potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
 
 
     # Metropolis Hastings to accept or reject new colored DAG
@@ -164,26 +213,26 @@ def MCMC_iteration(samples, edge_array, partition, score_info, move_weights):
         failed = 0
     else:
         if move == "change_color":
-            partition[new_color].remove(node)
-            partition[old_color].add(node)
+            P[new_color].remove(node)
+            P[old_color].add(node)
         elif move == "change_edge":
-            edge_array[edge] = 1 - edge_array[edge]
+            A[edge] = 1 - A[edge]
 
         new_score_info = score_info
         failed = 1
 
     
-    return edge_array, partition, new_score_info, failed
+    return A, P, new_score_info, failed
 
 
 
 # For moves
-def change_partiton(partition):
+def change_partiton(P):
     node_to_change = random.randrange(num_nodes)
     old_color = None
     other_colors = []
 
-    for i, part in enumerate(partition):
+    for i, part in enumerate(P):
         if node_to_change in part:
             old_color = i
         elif len(part) != 0:
@@ -191,35 +240,35 @@ def change_partiton(partition):
         else:
             empty_color = i
 
-    if len(partition[old_color]) != 1:
+    if len(P[old_color]) != 1:
         other_colors.append(empty_color)
 
-    partition[old_color].remove(node_to_change)
+    P[old_color].remove(node_to_change)
     new_color = random.choice(other_colors)
-    partition[new_color].add(node_to_change)
+    P[new_color].add(node_to_change)
 
-    return partition, node_to_change, old_color, new_color
+    return P, node_to_change, old_color, new_color
 
-def change_edge(edge_array):
+def change_edge(A):
     while True:
         edge = (random.randrange(num_nodes), random.randrange(num_nodes))
 
-        if edge_array[edge] == 1:
-            edge_array[edge] = 0
+        if A[edge] == 1:
+            A[edge] = 0
             break
         else:
-            tmp = edge_array.copy()
+            tmp = A.copy()
             tmp[edge] = 1
             if utils.is_DAG(tmp):
-                edge_array = tmp
+                A = tmp
                 break
     
-    return edge_array, edge
+    return A, edge
 
 
 
 # For DAG heuristic
-def score_DAG(samples, edge_array, partition):
+def score_DAG(samples, A, P):
     samples = samples.T
     
     global num_nodes
@@ -232,7 +281,7 @@ def score_DAG(samples, edge_array, partition):
     # Calculate ML-eval of the different lambdas
     edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
     for i in range(num_nodes):
-        parents = utils.get_parents(i, edge_array)
+        parents = utils.get_parents(i, A)
         ans = np.linalg.lstsq(samples[parents,:].T, samples[i,:].T, rcond=None)[0]
         edges_ML[parents, i] = ans
 
@@ -240,12 +289,12 @@ def score_DAG(samples, edge_array, partition):
     omegas_ML = [None] * num_nodes
     bic_decomp = [0] * num_nodes
 
-    for i, part in enumerate(partition):
+    for i, part in enumerate(P):
         if len(part) == 0:
             continue
         tot = 0
         for node in part:
-            parents = utils.get_parents(node, edge_array)
+            parents = utils.get_parents(node, A)
             tot += np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
         omegas_ML[i] = tot / (num_samples * len(part))
 
@@ -254,12 +303,12 @@ def score_DAG(samples, edge_array, partition):
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
-def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
+def score_DAG_color_edit(samples, A, P, last_change_data):
     samples = samples.T
     
     
@@ -271,41 +320,41 @@ def score_DAG_color_edit(samples, edge_array, partition, last_change_data):
     omegas_ML = last_change_data[1].copy()
     
     node, old_color, new_color = last_change_data[3]
-    parents = utils.get_parents(node, edge_array)
+    parents = utils.get_parents(node, A)
     node_ml_contribution = np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
 
-    if len(partition[old_color]) == 0:
+    if len(P[old_color]) == 0:
         omegas_ML[old_color] = None
     else:
-        tot = omegas_ML[old_color] * num_samples * (len(partition[old_color]) + 1)
+        tot = omegas_ML[old_color] * num_samples * (len(P[old_color]) + 1)
         tot -= node_ml_contribution
-        omegas_ML[old_color] = tot / (num_samples * len(partition[old_color]))
+        omegas_ML[old_color] = tot / (num_samples * len(P[old_color]))
     
-    if len(partition[new_color]) == 1:
+    if len(P[new_color]) == 1:
         tot = 0
     else:
-        tot = omegas_ML[new_color] * num_samples * (len(partition[new_color]) - 1)
+        tot = omegas_ML[new_color] * num_samples * (len(P[new_color]) - 1)
     tot += node_ml_contribution
-    omegas_ML[new_color] = tot / (num_samples * len(partition[new_color]))
+    omegas_ML[new_color] = tot / (num_samples * len(P[new_color]))
 
 
     # Calculate BIC
     bic_decomp = last_change_data[2].copy()
 
     for i in [old_color, new_color]:
-        part = partition[i]
+        part = P[i]
         if len(part) == 0:
             bic_decomp[i] = 0
             continue
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
 
-def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
+def score_DAG_edge_edit(samples, A, P, last_change_data):
     samples = samples.T
     
 
@@ -313,7 +362,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     edges_ML = last_change_data[0].copy()
     
     new_parent, new_child = last_change_data[3]
-    new_parents = utils.get_parents(new_child, edge_array)
+    new_parents = utils.get_parents(new_child, A)
     old_parents = new_parents.copy()
     try:
         old_parents.remove(new_parent)
@@ -328,12 +377,12 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     # Calculate ML-eval of the different color omegas
     omegas_ML = last_change_data[1].copy()
 
-    for i, part in enumerate(partition):
+    for i, part in enumerate(P):
         if new_child in part:
             current_color = i
             break
 
-    part = partition[current_color]
+    part = P[current_color]
     tot = omegas_ML[current_color] * num_samples * len(part)
     tot -= np.dot(x:=(samples[new_child,:] - old_ml.T @ samples[old_parents,:]), x)
     tot += np.dot(x:=(samples[new_child,:] - new_ml.T @ samples[new_parents,:]), x)
@@ -344,7 +393,7 @@ def score_DAG_edge_edit(samples, edge_array, partition, last_change_data):
     bic_decomp = last_change_data[2].copy()
     bic_decomp[current_color] = -len(part) * (np.log(omegas_ML[current_color]) + 1)
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]

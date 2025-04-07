@@ -15,13 +15,13 @@ from MCMCfuncs import CausalMCMC
 def main():
     random.seed(2)
     np.random.seed(2)
-    no_nodes = 6
+    no_nodes = 5
     no_colors = 3
-    sparse = True
+    edge_prob = 0.6
     sample_size = 1000
     MCMC_iterations = None
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
 
     # Create plots
@@ -55,7 +55,8 @@ def main():
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", found_iter)
-    print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
+    print("MCMC: SHD to real DAG:", utils.calc_SHD(edge_array, real_edge_array))
+    print("GES: SHD to real DAG:", utils.calc_SHD(GES_edge_array, real_edge_array))
     print("The found DAG with correct coloring gives BIC:", utils.score_DAG(samples, edge_array, real_partition))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 

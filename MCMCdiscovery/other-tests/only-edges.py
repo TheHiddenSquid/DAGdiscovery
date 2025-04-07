@@ -16,7 +16,7 @@ def main():
     no_nodes = 5
     no_colors = 3
     sparse = True
-    sample_size = 1000
+    sample_size = 100
     MCMC_iterations = 100_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
@@ -33,7 +33,7 @@ def main():
     G = nx.DiGraph(real_edge_array)
     nx.draw_circular(G, node_color=utils.generate_color_map(real_partition), with_labels=True)
     plt.title("Real DAG")
-
+    
 
     # GES estimate of graph
     samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
@@ -47,7 +47,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic = CausalMCMC(samples, MCMC_iterations, move_weights = [0, 1], start_from_GES = False, P0=real_partition)
+    edge_array, partition, bic = CausalMCMC(samples, MCMC_iterations, move_weights = [0, 1], P0=real_partition)
 
 
     print("MCMC given the correct colors")

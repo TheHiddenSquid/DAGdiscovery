@@ -38,8 +38,9 @@ def get_all_3node_DAGs(color = False):
 
 
 def main():
-    random.seed(8)
-    np.random.seed(8)
+    seed = 15
+    random.seed(seed)      # 8 is nice
+    np.random.seed(seed)   # 8 is nice
     # General setup
     num_nodes = 3
     num_colors = 3
@@ -77,10 +78,10 @@ def main():
 
     
     
-    allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
+    allbics = [2+score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
 
     print(sorted(allbics))
-    print("True was", sorted(allbics).index(score_DAG(samples, real_A, real_partition)[0]), "best of 25")
+    print("True was", sorted(allbics).index(2+score_DAG(samples, real_A, real_partition)[0]), "best of 25")
 
 
     # setup for MCMC

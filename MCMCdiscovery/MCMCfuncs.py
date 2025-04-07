@@ -9,7 +9,7 @@ import utils
 
 # Main MCMC functions
 
-def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_from_GES = False, A0 = None, P0 = None, debug = False):
+def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = None, P0 = None, debug = False):
     """
     Run MCMC to find the colored DAG that best fits the data. The data is assumed to be
     centered.
@@ -40,8 +40,10 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
 
     Returns
     -------
-    estimate : numpy.ndarray
-        The adjacency matrix of the estimated CPDAG.
+    estimate_edges : numpy.ndarray
+        The adjacency matrix of the estimated DAG.
+    estimate_partition : [[int]*]
+        The estimated node-partition.
     total_score : float
         The score of the estimate.
 
@@ -92,42 +94,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
 
     
     # Perform optional setup
-    if start_from_GES:
-        GES_edge_array = ges.fit_bic(data=data)[0]
-
-        # Take an initial DAG from the given GES CPDAG
-        A =  GES_edge_array.copy()
-        double = []
-        for i in range(num_nodes):
-            for j in range(i+1, num_nodes):
-                if A[i,j] == 1 and A[j,i] == 1:
-                    double.append((i,j))
-                    A[i,j] = 0
-                    A[j,i] = 0
-
-        for edge in double:
-            new_edges = A.copy()
-            new_edges[edge[0], edge[1]] = 1
-            if utils.is_DAG(new_edges):
-                A = new_edges
-                continue
-
-            new_edges = A.copy()
-            new_edges[edge[1], edge[0]] = 1
-            if utils.is_DAG(new_edges):
-                A = new_edges
-                continue
-
-            raise ValueError("Could not create DAG")
-
-        # Every node has its own color
-        P = [{i} for i in range(num_nodes)]
-
-    else:
-        # Fully random colored DAG
-        A = utils.get_random_DAG(num_nodes, sparse=True)
-        P = [{i} for i in range(num_nodes)]
-    
+    A = np.zeros((num_nodes, num_nodes))
+    P = [{i} for i in range(num_nodes)]
 
     if P0 is not None:
         P = copy.deepcopy(P0)
@@ -157,10 +125,11 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
                 best_iter = i
             num_fails += fail
 
+        CPDAG_A = utils.getCPDAG(best_A, best_P)
         if debug: 
-            return best_A, best_P, best_bic, best_iter, num_fails
+            return CPDAG_A, best_P, best_bic, best_iter, num_fails
         else:
-            return best_A, best_P, best_bic
+            return CPDAG_A, best_P, best_bic
     
 
     if mode == "map":
@@ -187,10 +156,11 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, start_
 
         best_P = [set(x) for x in most_visited[1]]
 
+        CPDAG_A = utils.getCPDAG(best_A, best_P)
         if debug: 
-            return best_A, best_P, num_visits, num_fails
+            return CPDAG_A, best_P, num_visits, num_fails
         else:
-            return best_A, best_P, num_visits
+            return CPDAG_A, best_P, num_visits
     
 def MCMC_iteration(samples, A, P, score_info, move_weights):
     # Check what moves are possible and pick one at random

@@ -8,15 +8,20 @@ from scipy.optimize import linear_sum_assignment
 
 # DAG generation
 def get_random_DAG(num_nodes, edge_prob = 0.5):
+    # Generate erdős-rényi under-triangular matrix
     edge_array = np.zeros((num_nodes, num_nodes), dtype=np.int64)
-    edges = []
-
+    
     for i in range(num_nodes):
         for j in range(num_nodes):
             if i > j:
                 if edge_prob > random.random():
-                    edge_array[i,j] = 1
-                    edges.append((i,j))
+                    edge_array[i,j] = 1      
+    
+    # Shuffle nodes
+    G = nx.DiGraph(edge_array)
+    node_mapping = dict(zip(G.nodes(), sorted(G.nodes(), key=lambda k: random.random())))
+    G_new = nx.relabel_nodes(G, node_mapping)
+    edge_array = nx.adjacency_matrix(G_new, node_mapping).todense()
 
     return edge_array
 

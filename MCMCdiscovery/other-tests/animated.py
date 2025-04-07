@@ -14,11 +14,11 @@ from MCMCfuncs import MCMC_iteration, score_DAG
 def main():
     no_nodes = 6
     no_colors = 4
-    sparse = True
+    edge_prob = 0.6
     sample_size = 1000
     start_with_GES_DAG = False
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
     global samples
@@ -122,7 +122,7 @@ def main():
         global current_bic
         global samples
 
-        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
+        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
         
         G = nx.DiGraph(current_edge_array)
         nx.draw_circular(G, node_color=utils.generate_color_map(current_partition), with_labels=True)

@@ -17,13 +17,12 @@ def main():
     np.random.seed(2)
     no_nodes = 6
     no_colors = 3
-    sparse = True
+    edge_prob = 0.6
     sample_size = 1000
     MCMC_iterations = 100_000
-    start_with_GES_DAG = True
     no_chains = 3
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
 
@@ -50,50 +49,15 @@ def main():
     plt.title("GES CPDAG")
     
 
-    # MCMC setup
-    if start_with_GES_DAG:
 
-        # Take an initial DAG from the given GES CPDAG
-        initial_edge_array =  GES_edge_array.copy()
-        double = []
-        for i in range(no_nodes):
-            for j in range(i+1, no_nodes):
-                if initial_edge_array[i,j] == 1 and initial_edge_array[j,i] == 1:
-                    double.append((i,j))
-                    initial_edge_array[i,j] = 0
-                    initial_edge_array[j,i] = 0
-
-        for edge in double:
-            new_edges = initial_edge_array.copy()
-            new_edges[edge[0], edge[1]] = 1
-            G = nx.DiGraph(new_edges)
-            if nx.is_directed_acyclic_graph(G):
-                initial_edge_array = new_edges
-                continue
-
-            new_edges = initial_edge_array.copy()
-            new_edges[edge[1], edge[0]] = 1
-            G = nx.DiGraph(new_edges)
-            if nx.is_directed_acyclic_graph(G):
-                initial_edge_array = new_edges
-                continue
-
-            raise ValueError("Could not create DAG")
-
-        # Random initial coloring guess
-        initial_partition = utils.generate_random_partition(no_nodes, no_nodes)
-
-    else:
-        # Fully random colored DAG
-        initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
-        initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
+    # Fully random colored DAG
+    initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
+    initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
     
 
     
 
     # RUN MCMC
-
-
 
     chain_bics = []
     chain_cumsum = []
@@ -119,7 +83,7 @@ def main():
 
         for i in range(MCMC_iterations):
 
-            current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [1/3,1/3,1/3])
+            current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
 
             if current_bic[0] > best_bic:
                 best_edge_array = current_edge_array.copy()

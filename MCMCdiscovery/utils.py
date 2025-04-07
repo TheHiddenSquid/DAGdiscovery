@@ -7,39 +7,35 @@ from scipy.optimize import linear_sum_assignment
 
 
 # DAG generation
-def get_random_DAG(num_nodes, sparse = False):
+def get_random_DAG(num_nodes, edge_prob = 0.5):
     edge_array = np.zeros((num_nodes, num_nodes), dtype=np.int64)
-    
-    for _ in range(100 * num_nodes**2):
-        edge = (random.randrange(num_nodes), random.randrange(num_nodes))
-        if edge_array[edge] == 1:
-            edge_array[edge] = 0
-        else:
-            if sparse and np.sum(edge_array) >= 1.5*num_nodes:
-                continue
-            tmp = edge_array.copy()
-            tmp[edge] = 1
-            if is_DAG(tmp):
-                edge_array = tmp
-    
+    edges = []
+
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if i > j:
+                if edge_prob > random.random():
+                    edge_array[i,j] = 1
+                    edges.append((i,j))
+
     return edge_array
 
-def generate_colored_DAG(num_nodes, num_colors, sparse = False):
+def generate_colored_DAG(num_nodes, num_colors, edge_prob = 0.5):
     
     # Create partition for colors
     partition = generate_random_partition(num_nodes, num_colors)
 
     # Generate lambda matrix
-    lambda_matrix = get_random_DAG(num_nodes, sparse)
+    lambda_matrix = get_random_DAG(num_nodes, edge_prob)
     lambda_matrix = lambda_matrix.astype(np.float64)
 
     for i in range(num_nodes):
         for j in range(num_nodes):
             if lambda_matrix[i,j] == 1:
-                lambda_matrix[i,j] = random.uniform(-1,1)
+                lambda_matrix[i,j] = random.uniform(0.25,1) * random.randrange(-1,2,2)
 
     # Generate omega matrix
-    choices = [random.random() for _ in range(num_colors)]
+    choices = [random.uniform(0.2,2) for _ in range(num_colors)]
     omega_matrix = [None] * num_nodes
     for i, part in enumerate(partition):
         for node in part:
@@ -177,6 +173,101 @@ def sorted_partition(partition):
                 for k in part:
                     dones[k] = True
     return sorted_partition
+
+
+
+# Get CPDAG given DAG and partition
+def R1(A):
+    num_nodes = A.shape[0]
+    for node1 in range(num_nodes):
+        for node2 in range(num_nodes):
+            if node2 == node1:
+                continue
+            if A[node1, node2] == 1 and A[node2, node1] == 0:
+                for node3 in range(num_nodes):
+                    if node3 == node1 or node3 == node2:
+                        continue
+                    if A[node2, node3] == 1 and A[node3, node2] == 1:
+                        if A[node1, node3] == 0 and A[node3, node1] == 0:
+                            A[node3, node2] = 0
+                            return A, True
+    return A, False
+def R2(A):
+    num_nodes = A.shape[0]
+    for node1 in range(num_nodes):
+        for node2 in range(num_nodes):
+            if node2 == node1:
+                continue
+            if A[node1, node2] == 1 and A[node2, node1] == 0:
+                for node3 in range(num_nodes):
+                    if node3 == node1 or node3 == node2:
+                        continue
+                    if A[node2, node3] == 1 and A[node3, node2] == 0:
+                        if A[node1, node3] == 1 and A[node3, node1] == 1:
+                            A[node3, node1] = 0
+                            return A, True
+    return A, False
+def R3(A):
+    num_nodes = A.shape[0]
+    for node1 in range(num_nodes):
+        for node2 in range(num_nodes):
+            if node2 == node1:
+                continue
+            if A[node1, node2] == 1 and A[node2, node1] == 0:
+                for node3 in range(num_nodes):
+                    if node3 == node1 or node3 == node2:
+                        continue
+                    if A[node3, node2] == 1 and A[node2, node3] == 0:
+                        for node4 in range(num_nodes):
+                            if node4 == node1 or node4 == node2 or node4 == node3:
+                                continue
+                            if A[node1, node4] == 1 and A[node4, node1] == 1:
+                                if A[node2, node4] == 1 and A[node4, node2] == 1:
+                                    if A[node3, node4] == 1 and A[node4, node3] == 1:
+                                        A[node2, node4] = 0
+                                        return A, True
+    return A, False
+
+def getCPDAG(A, P):
+    # Skeleton
+    num_nodes = A.shape[0]
+    newA = np.array(A + A.T != 0, dtype=np.int64)
+ 
+    # V-structures
+    v_triplets = list(nx.dag.v_structures(nx.DiGraph(A)))
+    for pa1, col, pa2 in v_triplets:
+        newA[(col, pa1)] = 0
+        newA[(col, pa2)] = 0
+
+    # Repeat R1, R2, R3
+    while True:
+        newA, did_change1 = R1(newA)
+        newA, did_change2 = R2(newA)
+        newA, did_change3 = R3(newA)
+        if not (did_change1 or did_change2 or did_change3):
+            break
+    
+    # Add color info
+    nodes_to_look_at = []
+    for part in P:
+        if len(part) >= 2:
+            nodes_to_look_at += part
+    
+    for node in nodes_to_look_at:
+        for other in range(num_nodes):
+            if A[node, other] == 1:
+                newA[other, node] = 0
+            if A[other, node] == 1:
+                newA[node, other] = 0  
+    
+    # Repeat R1, R2, R3
+    while True:
+        newA, did_change1 = R1(newA)
+        newA, did_change2 = R2(newA)
+        if not (did_change1 or did_change2):
+            break
+
+    return newA
 
 
 

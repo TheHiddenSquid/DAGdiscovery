@@ -162,7 +162,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         else:
             return CPDAG_A, best_P, num_visits
     
-def MCMC_iteration(samples, A, P, score_info, move_weights):
+def MCMC_iteration(data, A, P, score_info, move_weights):
     # Check what moves are possible and pick one at random
 
     moves = ["change_color", "change_edge"]
@@ -173,12 +173,12 @@ def MCMC_iteration(samples, A, P, score_info, move_weights):
         case "change_color":
             P, node, old_color, new_color = change_partiton(P)
 
-            potential_score_info = score_DAG_color_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+            potential_score_info = score_DAG_color_edit(data, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
 
         case "change_edge":
             A, edge = change_edge(A)
         
-            potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
+            potential_score_info = score_DAG_edge_edit(data, A, P, [score_info[1], score_info[2], score_info[3], edge])
 
 
     # Metropolis Hastings to accept or reject new colored DAG

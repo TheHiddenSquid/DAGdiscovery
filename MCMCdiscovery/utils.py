@@ -318,3 +318,6 @@ def generate_color_map(P):
 
     return color_map
 
+def hash_DAG(edge_array, partition):
+    return (edge_array.tobytes(), tuple(tuple(x) for x in sorted_partition(partition)))
+

@@ -156,7 +156,7 @@ def main():
     no_nodes = 6
     no_colors = 3
     sparse = True
-    MCMC_iterations = 10_000
+    tabu_iterations = 1_000
 
     num_tests = 10
 
@@ -175,18 +175,14 @@ def main():
             samples = utils.generate_sample(num_samples, real_lambda_matrix, real_omega_matrix)
             res = ges.fit_bic(data=samples)
             GES_edge_array = res[0]
-
-            MCMC_edge_array, partition, bic, _, _ = CausalTabuSearch(samples, MCMC_iterations)
-
-
-            MCMC_error = utils.calc_SHD(dag_to_cpdag(real_edge_array), dag_to_cpdag(MCMC_edge_array))
             GES_error = utils.calc_SHD(dag_to_cpdag(real_edge_array), GES_edge_array)
-            
-            df.loc[-1] = [dag_id, num_samples, "MCMC", GES_error]
+            df.loc[-1] = [dag_id, num_samples, "GES", GES_error]
             df.index = df.index + 1
             df = df.sort_index()
-
-            df.loc[-1] = [dag_id, num_samples, "GES", MCMC_error]
+            
+            tabu_edge_array, partition, bic, _, _ = CausalTabuSearch(samples, tabu_iterations)
+            tabu_error = utils.calc_SHD(dag_to_cpdag(real_edge_array), dag_to_cpdag(tabu_edge_array))
+            df.loc[-1] = [dag_id, num_samples, "Tabu", tabu_error]
             df.index = df.index + 1
             df = df.sort_index()
 

@@ -3,7 +3,6 @@ import random
 from collections import defaultdict
 from itertools import repeat
 
-import ges
 import numpy as np
 import utils
 
@@ -138,13 +137,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for _ in repeat(None, num_iters):
-
             A, P, score_info, fail = MCMC_iteration(data, A, P, score_info, move_weights)
-
-            h1 = A.tobytes()
-            h2 = tuple(tuple(x) for x in utils.sorted_partition(P))
-
-            cashe[(h1,h2)] += 1
+            cashe[utils.hash_DAG(A, P)] += 1
             num_fails += fail
 
         most_visited = max(cashe, key=cashe.get)
@@ -181,7 +175,7 @@ def MCMC_iteration(data, A, P, score_info, move_weights):
             potential_score_info = score_DAG_edge_edit(data, A, P, [score_info[1], score_info[2], score_info[3], edge])
 
 
-    # Metropolis Hastings to accept or reject new colored DAG
+    # Metropolis algorithm to accept or reject new colored DAG
     if random.random() <= np.exp(potential_score_info[0] - score_info[0]):
         new_score_info = potential_score_info
         failed = 0

@@ -15,13 +15,13 @@ from Tabufuncs import CausalTabuSearch
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 12
+    no_nodes = 10
     no_colors = 3
-    sparse = True
+    edge_prob = 0.6
     sample_size = 1000
-    num_iterations = 10_000
+    num_iterations = 1000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
 
 
@@ -39,7 +39,10 @@ def main():
 
     # GES estimate of graph
     samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+
+    t = time.perf_counter()
     res = ges.fit_bic(data=samples)
+    print("GES time:", time.perf_counter()-t)
     GES_edge_array = res[0]
 
     plt.axes(ax2)
@@ -49,16 +52,17 @@ def main():
     
 
     t = time.perf_counter()
+    print("AA")
     edge_array, partition, bic, found_iter, fails = CausalTabuSearch(samples, num_iterations)
 
 
-    print(f"Ran MCMC for {num_iterations} iterations")
+    print(f"Ran Tabu for {num_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", found_iter)
     print("Total fails:", fails)
-    print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
-    print("The found DAG with correct coloring gives BIC:", utils.score_DAG(samples, edge_array, real_partition))
+    print("Tabu: SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
+    print("GES: SHD to real DAG was:", utils.calc_SHD(GES_edge_array, real_edge_array))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 
 

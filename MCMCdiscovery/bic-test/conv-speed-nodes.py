@@ -19,7 +19,7 @@ def main():
 
     # RUN MCM
     num_chains = 25
-    max_num_nodes = 10  # 10 took 3h 50min. 11 is probably possible over night
+    max_num_nodes = 10  # 10 took 1h. 11 is probably possible over night
     
 
     required_iters = []

@@ -32,7 +32,7 @@ def main():
 
     random.seed(1)
     np.random.seed(1)
-    MCMC_iterations = 10_000
+    MCMC_iterations = 5_00
     disp_labels = {i:used_varables[i] for i in range(len(used_varables))}
     print(disp_labels)
 

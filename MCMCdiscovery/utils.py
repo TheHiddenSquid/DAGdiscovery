@@ -223,14 +223,15 @@ def R3(A):
                     if node3 == node1 or node3 == node2:
                         continue
                     if A[node3, node2] == 1 and A[node2, node3] == 0:
-                        for node4 in range(num_nodes):
-                            if node4 == node1 or node4 == node2 or node4 == node3:
-                                continue
-                            if A[node1, node4] == 1 and A[node4, node1] == 1:
-                                if A[node2, node4] == 1 and A[node4, node2] == 1:
-                                    if A[node3, node4] == 1 and A[node4, node3] == 1:
-                                        A[node2, node4] = 0
-                                        return A, True
+                        if A[node1, node3] == 0 and A[node3, node1] == 0:
+                            for node4 in range(num_nodes):
+                                if node4 == node1 or node4 == node2 or node4 == node3:
+                                    continue
+                                if A[node1, node4] == 1 and A[node4, node1] == 1:
+                                    if A[node2, node4] == 1 and A[node4, node2] == 1:
+                                        if A[node3, node4] == 1 and A[node4, node3] == 1:
+                                            A[node2, node4] = 0
+                                            return A, True
     return A, False
 
 def getCPDAG(A, P):

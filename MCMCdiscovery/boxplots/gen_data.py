@@ -52,9 +52,6 @@ def get_data_df(num):
     return num, df, t_end-t_start
 
 
-
-
-
 def main():
     random.seed(1)
     np.random.seed(1)
@@ -74,8 +71,6 @@ def main():
     t_end = time.perf_counter()
     print(f"All done in {t_end-t_start} s")
     final_df.to_csv("out_MCMC.csv", index=False)
-
-
 
 
 if __name__ == "__main__":

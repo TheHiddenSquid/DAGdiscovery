@@ -42,8 +42,6 @@ def CausalGreedySearch(samples, num_waves = 8):
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
                 best_bic = score_info[0]
-        
-        print(score_info[0])
 
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic

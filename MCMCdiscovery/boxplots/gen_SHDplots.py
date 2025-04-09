@@ -42,11 +42,12 @@ def main():
     size_options = [4,6,8]
     sample_options = [100, 500, 1000]
 
-    df = pd.read_csv("out2colors.csv")
-
+    df = pd.read_csv("out_MCMC.csv")
+    
 
     for row in [0,1,2]:
         tmp1_df = df[df["num_nodes"] == size_options[row]]
+        tmp1_df = tmp1_df[tmp1_df["num_colors"] == int(size_options[row]/2)]
 
         for col in [0,1,2]:
             plt.subplot(3,3, 3*row+col+1)

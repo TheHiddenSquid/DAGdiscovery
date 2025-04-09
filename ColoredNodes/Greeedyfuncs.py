@@ -3,7 +3,7 @@ import copy
 import numpy as np
 import utils
 
-# Main greedy function
+# Main functions
 
 def CausalGreedySearch(samples, num_waves = 8):
     
@@ -48,8 +48,6 @@ def CausalGreedySearch(samples, num_waves = 8):
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic
     
-
-
 def Greedyiteration(samples, A, P, score_info, sorted_edges):
     best_move = None
     best_A = None

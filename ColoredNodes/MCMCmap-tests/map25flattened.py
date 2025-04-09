@@ -3,7 +3,6 @@ import sys
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
-import networkx as nx
 import numpy as np
 
 sys.path.append("../")
@@ -38,9 +37,9 @@ def get_all_3node_DAGs(color = False):
 
 
 def main():
-    seed = 15
-    random.seed(seed)      # 8 is nice
-    np.random.seed(seed)   # 8 is nice
+    seed = 28   # 28 is nice
+    random.seed(seed)
+    np.random.seed(seed)
     # General setup
     num_nodes = 3
     num_colors = 3

@@ -1,199 +1,67 @@
 import copy
-import random
-import time
 
 import numpy as np
 import utils
 
-# Main MCMC function
+# Main greedy function
 
-def CausalTabuSearch(samples, num_iters):
+def CausalGreedySearch(samples, num_waves = 8):
     
     # Setup global variables
-    global tabu_visited
-    global tabu_looked_at
     global num_nodes
     global num_samples
     global BIC_constant
-
-    tabu_visited = set()
-    tabu_looked_at = set()
 
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
 
-    # Begin with empty DAG
-    A = np.zeros((num_nodes,num_nodes), dtype=np.int64)
-    P = [{i} for i in range(num_nodes)]
-    tabu_visited.add(hash_DAG(A, P))
+    # Perform iterations
+    best_A = None
+    best_P = None
+    best_bic = -np.inf
+
+    edge_probs = list(np.linspace(0,1,num_waves))
+    num_colors = [int(x) for x in np.linspace(1,num_nodes,num_waves)]
+
     
-  
-    # Setup for iters
-    sorted_edges = get_sorted_edges(A)
-    score_info = score_DAG(samples, A, P)
+    for i in range(num_waves):
+        P, lambda_matrix, _ = utils.generate_colored_DAG(num_nodes, num_colors[i], edge_probs[i])
+        A = np.array(lambda_matrix != 0, dtype=np.int64)
+        for _ in range(num_nodes-len(P)):
+            P.append(set())
 
+        score_info = score_DAG(samples, A, P)
+        sorted_edges = get_sorted_edges(A)
+        done = False
 
-    best_A = A.copy()
-    best_P = copy.deepcopy(P)
-    best_bic = score_info[0]
-    best_iter = 0
-    fails = 0
-
-    # Run MCMC iters    
-    for i in range(num_iters):
-        print(i)
-        A, P, score_info, sorted_edges, fail = iteration(samples, A, P, score_info, sorted_edges)
-        if score_info[0] > best_bic:
-            best_A = A.copy()
-            best_P = utils.sorted_partition(P)
-            best_bic = score_info[0]
-            best_iter = i
-        fails += fail
-        tabu_visited.add(hash_DAG(A, P))
+        while not done:
+            A, P, score_info, sorted_edges, done = Greedyiteration(samples, A, P, score_info, sorted_edges)
+            if score_info[0] > best_bic:
+                best_A = A.copy()
+                best_P = utils.sorted_partition(P)
+                best_bic = score_info[0]
+        
+        print(score_info[0])
 
     CPDAG_A = utils.getCPDAG(best_A, best_P)
-    return CPDAG_A, best_P, best_bic, best_iter, fails
+    return CPDAG_A, best_P, best_bic
     
 
 
-def iteration(samples, A, P, score_info, sorted_edges, moves = None):
-    # Idea: generate a number and just save that as the potential random move
-
+def Greedyiteration(samples, A, P, score_info, sorted_edges):
     best_move = None
-    best_saved_edge = None
-    best_edge_array = None
-    best_partition = None
+    best_A = None
+    best_P = None
     best_score_info = None
+    best_BIC = score_info[0]
     edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
 
-    if moves is not None:
-        do_colors = moves[0]
-        do_edges = moves[1]
-    else:
-        do_colors = do_edges = 1
 
 
     # Check all neighboring colorings
-    if do_colors:
-        for node in range(num_nodes):
-            old_color = None
-            other_colors = []
-
-            for i, part in enumerate(P):
-                if node in part:
-                    old_color = i
-                elif len(part) != 0:
-                    other_colors.append(i)
-                else:
-                    empty_color = i
-
-            if len(P[old_color]) != 1:
-                other_colors.append(empty_color)
-
-            P[old_color].remove(node)
-            for new_color in other_colors:
-                P[new_color].add(node)
-
-                h = hash_DAG(A, P)
-                if h not in tabu_looked_at:
-                    potential_score_info = score_DAG_color_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
-                    tabu_looked_at.add(h)
-
-                    if best_score_info is None or potential_score_info[0] > best_score_info[0]:
-                        best_partition = copy.deepcopy(P)
-                        best_score_info = potential_score_info
-                        best_move = "change_color"
-
-
-                P[new_color].remove(node)
-            P[old_color].add(node)
-
-
-    # Check all potential edge adds
-    if do_edges:
-        for edge in edges_giving_DAGs:
-            A[edge] = 1
-
-            h = hash_DAG(A, P)
-            if h not in tabu_looked_at:
-                potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
-                tabu_looked_at.add(h)
-
-                if best_score_info is None or potential_score_info[0] > best_score_info[0]:
-                    best_edge_array = A.copy()
-                    best_score_info = potential_score_info
-                    best_move = "add_edge"
-                    best_saved_edge = edge
-        
-            A[edge] = 0
-
-
-    # Check all potential edge removals
-        for edge in edges_in_DAG:
-            A[edge] = 0
-            
-            h = hash_DAG(A, P)
-            if h not in tabu_looked_at:
-                potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
-                tabu_looked_at.add(h)
-            
-                if best_score_info is None or potential_score_info[0] > best_score_info[0]:
-                    best_edge_array = A.copy()
-                    best_score_info = potential_score_info
-                    best_move = "remove_edge"
-                    best_saved_edge = edge
-            
-            A[edge] = 1
-
-
-
-    # Do the best possible jump
-
-
-    if (best_score_info is None) or (best_score_info[0] < score_info[0]):
-        fail = 1
-        new_edge_array, new_partition, new_sorted_edges, new_score_info = make_random_move(samples, A, P, sorted_edges, score_info, [do_colors, do_edges])
-    else:
-        fail = 0
-        new_score_info = best_score_info
-
-        if best_move == "change_color":
-            new_edge_array = A
-            new_partition = best_partition
-            new_sorted_edges = sorted_edges
-        elif best_move == "add_edge":
-            new_edge_array = best_edge_array
-            new_partition = P
-            new_sorted_edges = update_sorted_edges_ADD(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
-        elif best_move == "remove_edge":
-            new_edge_array = best_edge_array
-            new_partition = P
-            new_sorted_edges = update_sorted_edges_REMOVE(new_edge_array, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
-
-        if hash_DAG(new_edge_array, new_partition) in tabu_visited:
-            fail = 1
-            new_edge_array, new_partition, new_sorted_edges, new_score_info = make_random_move(samples, A, P, sorted_edges, score_info, [do_colors, do_edges])
-
-        
-    return new_edge_array, new_partition, new_score_info, new_sorted_edges, fail
-
-
-def make_random_move(samples, A, P, sorted_edges, score_info, move_weight):
-    edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
-
-    moves = [ "change_color", "add_edge", "remove_edge"]
-    weights = [move_weight[0], move_weight[1], move_weight[1]]
-    if len(edges_in_DAG) == 0:
-        weights[2] = 0  
-    elif len(edges_giving_DAGs) == 0 :
-        weights[1] = 0
-    move = random.choices(moves, weights = weights, k = 1)[0]
-
-
-    if move == "change_color":
-        node = random.randrange(num_nodes)
+    for node in range(num_nodes):
         old_color = None
         other_colors = []
 
@@ -209,24 +77,80 @@ def make_random_move(samples, A, P, sorted_edges, score_info, move_weight):
             other_colors.append(empty_color)
 
         P[old_color].remove(node)
-        new_color = random.choice(other_colors)
-        P[new_color].add(node)
-        score_info = score_DAG_color_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
-        
+        for new_color in other_colors:
+            P[new_color].add(node)
 
-    if move == "add_edge":
-        edge = random.choice(edges_giving_DAGs)
+
+            potential_score_info = score_DAG_color_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+
+            if potential_score_info[0] > best_BIC:
+                best_P = copy.deepcopy(P)
+                best_score_info = potential_score_info
+                best_move = "change_color"
+                best_BIC = potential_score_info[0]
+
+
+            P[new_color].remove(node)
+        P[old_color].add(node)
+
+
+    # Check all potential edge adds
+    for edge in edges_giving_DAGs:
         A[edge] = 1
-        sorted_edges = update_sorted_edges_ADD(A, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-        score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
 
-    if move == "remove_edge":
-        edge = random.choice(edges_in_DAG)
+        potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
+
+        if potential_score_info[0] > best_BIC:
+            best_A = A.copy()
+            best_score_info = potential_score_info
+            best_move = "add_edge"
+            best_saved_edge = edge
+            best_BIC = potential_score_info[0]
+    
         A[edge] = 0
-        sorted_edges = update_sorted_edges_REMOVE(A, sorted_edges[0], sorted_edges[1], sorted_edges[2], edge)
-        score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
 
-    return A, P, sorted_edges, score_info
+
+    # Check all potential edge removals
+    for edge in edges_in_DAG:
+        A[edge] = 0
+        
+        potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
+
+        if potential_score_info[0] > best_BIC:
+            best_A = A.copy()
+            best_score_info = potential_score_info
+            best_move = "remove_edge"
+            best_saved_edge = edge
+            best_BIC = potential_score_info[0]
+        
+        A[edge] = 1
+
+
+
+    # Do the best possible jump
+
+    if best_score_info is None:
+        return A, P, score_info, sorted_edges, True
+    
+    else:
+        new_score_info = best_score_info
+        
+        if best_move == "change_color":
+            new_A = A
+            new_P = best_P
+            new_sorted_edges = sorted_edges
+        elif best_move == "add_edge":
+            new_A = best_A
+            new_P = P
+            new_sorted_edges = update_sorted_edges_ADD(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
+        elif best_move == "remove_edge":
+            new_A = best_A
+            new_P = P
+            new_sorted_edges = update_sorted_edges_REMOVE(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
+
+        
+    return new_A, new_P, new_score_info, new_sorted_edges, False
+
 
 
 # For edge lookups
@@ -427,11 +351,6 @@ def score_DAG_edge_edit(samples, A, P, last_change_data):
 
 
     return [bic, edges_ML, omegas_ML, bic_decomp]
-
-
-
-def hash_DAG(edge_array, partition):
-    return (edge_array.tobytes(), tuple(tuple(x) for x in utils.sorted_partition(partition)))
 
 
 

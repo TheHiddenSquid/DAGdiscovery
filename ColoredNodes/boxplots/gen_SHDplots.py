@@ -16,6 +16,7 @@ import utils
 
 def main():
 
+    # Setup plots
     cols = [f"n = {x}" for x in [100,500,1000]]
     rows = [f"p = {x}" for x in [4,6,8]]
 
@@ -38,16 +39,17 @@ def main():
     fig.subplots_adjust(left=0.15, top=0.95)
 
 
-
+    # Fill plots with data
     size_options = [4,6,8]
+    size_options = [3,4,5]
     sample_options = [100, 500, 1000]
 
     df = pd.read_csv("out_MCMC.csv")
+    df = pd.read_csv("out_all_algs.csv")
     
-
     for row in [0,1,2]:
         tmp1_df = df[df["num_nodes"] == size_options[row]]
-        tmp1_df = tmp1_df[tmp1_df["num_colors"] == int(size_options[row]/2)]
+        tmp1_df = tmp1_df[tmp1_df["num_colors"] == int(size_options[row]/2)]    # Change between 2 and int(size_options[row]/2)
 
         for col in [0,1,2]:
             plt.subplot(3,3, 3*row+col+1)

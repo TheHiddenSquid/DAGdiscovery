@@ -9,17 +9,17 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from Hybridfuncs import CausalHybridSearch
+from Greeedyfuncs import CausalGreedySearch
 
 
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 20
+    no_nodes = 12
     no_colors = 3
     edge_prob = 0.6
     sample_size = 1000
-    num_waves = 10
+    num_waves = 8
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
@@ -50,13 +50,12 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic, found_iter = CausalHybridSearch(samples, num_waves)
+    edge_array, partition, bic = CausalGreedySearch(samples, num_waves)
 
 
     print(f"Ran Hybrid for {num_waves} waves")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
-    print("Found on iteration:", found_iter)
     print("Hybrid: SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
     print("GES: SHD to real DAG was:", utils.calc_SHD(GES_edge_array, real_edge_array))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))

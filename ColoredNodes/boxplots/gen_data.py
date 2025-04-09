@@ -14,6 +14,7 @@ import utils
 
 def get_data_df(num):
     size_options = [4,6,8]
+    size_options = [3,4,5]
     edge_probabilities = [0.2,0.4,0.6,0.8]
     sample_options = [100, 500, 1000]
     color_options = ["2", "num_nodes/2"]
@@ -39,11 +40,19 @@ def get_data_df(num):
                     df.index = df.index + 1
                     df = df.sort_index()
                     
-                    # MCMC estimate of graph
+                    # MCMC_BIC estimate of graph
                     MCMC_edge_array, MCMC_partition, _ = MCMCfuncs.CausalMCMC(samples)
                     MCMC_SHD = utils.calc_SHD(real_edge_array, MCMC_edge_array)
                     MCMC_CHD = utils.calc_CHD(real_partition, MCMC_partition)
-                    df.loc[-1] = [num_nodes, nc_used, edge_prob, num_samples, "MCMC", MCMC_SHD, MCMC_CHD]
+                    df.loc[-1] = [num_nodes, nc_used, edge_prob, num_samples, "MCMC_BIC", MCMC_SHD, MCMC_CHD]
+                    df.index = df.index + 1
+                    df = df.sort_index()
+
+                    # MCMC_MAP estimate of graph
+                    MCMC_edge_array, MCMC_partition, _ = MCMCfuncs.CausalMCMC(samples, mode="map")
+                    MCMC_SHD = utils.calc_SHD(real_edge_array, MCMC_edge_array)
+                    MCMC_CHD = utils.calc_CHD(real_partition, MCMC_partition)
+                    df.loc[-1] = [num_nodes, nc_used, edge_prob, num_samples, "MCMC_MAP", MCMC_SHD, MCMC_CHD]
                     df.index = df.index + 1
                     df = df.sort_index()
     
@@ -57,6 +66,7 @@ def main():
     np.random.seed(1)
 
     num_tests = 40
+    num_tests = 8
   
     dfs = []
     print("Start")
@@ -64,13 +74,13 @@ def main():
     with Pool() as pool:
         result = pool.imap(get_data_df, [x for x in range(num_tests)])
         for num, df, duration in result:
-            print(f"{num}, took, {duration}, s")
+            print(f"{num}, took, {duration} s")
             dfs.append(df)
 
     final_df = pd.concat(dfs)
     t_end = time.perf_counter()
     print(f"All done in {t_end-t_start} s")
-    final_df.to_csv("out_MCMC.csv", index=False)
+    final_df.to_csv("out_all_algs.csv", index=False)
 
 
 if __name__ == "__main__":

@@ -69,7 +69,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     if num_iters is None:
         num_iters = 50 * 4**num_nodes
         if num_nodes > 8:
-            print("Warning! Default number of iterations on more than 8 variables will take time")
+            print("Warning! Default number of iterations on more than 8 variables is too big. Set to 50*4^8")
+            num_iters = 50 * 4**8
     elif not isinstance(num_iters, int):
         raise TypeError("num_iters needs to be an int")
     elif num_iters < 0:

@@ -39,8 +39,9 @@ def get_all_3node_DAGs(color = False):
 def main():
 
     # General setup
-    random.seed(3)
-    np.random.seed(3)
+    seed = 16 # best 16
+    random.seed(seed)
+    np.random.seed(seed)
     num_nodes = 3
     num_colors = 3
     sparse = True
@@ -121,7 +122,7 @@ def main():
 
     allbics = [score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), p)[0] for (x,p) in dags]
     node_size = [6*np.exp(2*x) for x in allbics]
-    node_size = [300*x for x in allbics]
+    node_size = [200*x for x in allbics]
 
     print(sorted(allbics))
     print("postive:", sum(1 for x in allbics if x>0))

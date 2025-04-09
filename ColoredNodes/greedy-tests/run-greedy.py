@@ -9,7 +9,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from Greeedyfuncs import CausalGreedySearch
+from Greedyfuncs import CausalGreedySearch
 
 
 def main():

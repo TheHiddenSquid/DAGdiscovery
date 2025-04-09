@@ -38,8 +38,8 @@ def get_all_3node_DAGs(color = False):
 
 
 def main():
-    random.seed(8)
-    np.random.seed(8)
+    random.seed(7)
+    np.random.seed(7)
     # General setup
     num_nodes = 3
     num_colors = 3

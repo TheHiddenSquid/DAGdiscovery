@@ -16,11 +16,11 @@ def main():
     np.random.seed(3)
     no_nodes = 8
     no_colors = 4
-    sparse = True
+    edge_prob = 0.6
     sample_size = 1000
     MCMC_iterations = 100_000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
 

@@ -83,54 +83,33 @@ def main():
     print("True was", sorted(allbics).index(2+score_DAG(samples, real_A, real_partition)[0]), "best of 25")
 
 
-    # setup for MCMC
-  
-    fig, ax = plt.subplots()
 
-    def init():
-        global current_edge_array
-        global current_partition
-        global current_bic
-        global labels
-        current_edge_array = np.zeros((3,3))
-        current_partition = real_partition.copy()
-        current_bic = score_DAG(samples, current_edge_array, current_partition)
 
-        labels = {i:0 for i in range(25)}
-        labels[0] = 1
-        
-        plt.bar(labels.keys(), [x/sum(labels.values()) for x in labels.values()], label="MCMC")
-        ebic = [np.exp(x) for x in allbics]
-        plt.plot(labels.keys(), [x/sum(ebic) for x in ebic], color = "C1", label="True value")
-        plt.xlabel("DAG ID")
-        plt.ylabel("Probabiliry")
-        plt.legend(loc = "upper left")
+    # setup for MCMC  
+    current_edge_array = np.zeros((3,3))
+    current_partition = real_partition.copy()
+    current_bic = score_DAG(samples, current_edge_array, current_partition)
 
-    def update(frame):
-        global labels
-        global current_edge_array
-        global current_partition
-        global current_bic
-        global current_node
-
-        ax.clear()
+    counts = [0]*25
+    A = current_edge_array.astype("int")
+    counts[dags.index(A.tobytes())] += 1
+    
+    random.seed()
+    np.random.seed()
+    num_iters = 1_00_000
+    for _ in range(num_iters):
         current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
-
         A = current_edge_array.astype("int")
-        labels[dags.index(A.tobytes())] += 1
-        bar_color = ["C0"]*25
-        bar_color[dags.index(A.tobytes())] = "lightpink"
-        #bar_color[dags.index(real_A.tobytes())] = "gold"
-        plt.bar(labels.keys(), [x/sum(labels.values()) for x in labels.values()], label="MCMC", color = bar_color)
-        ebic = [np.exp(x) for x in allbics]
-        plt.plot(labels.keys(), [x/sum(ebic) for x in ebic], color = "C1", label="True value")
-        plt.xlabel("DAG ID")
-        plt.ylabel("Probability")
-        plt.legend(loc = "upper left")
+        counts[dags.index(A.tobytes())] += 1
 
+    print(counts)
 
-    ani = animation.FuncAnimation(fig=fig, func=update, frames=10_000, interval=10, init_func=init)
-    ani.save(filename="MCMC_example.gif", writer="pillow")
+    plt.bar(range(25), [x/sum(counts) for x in counts], label="MCMC")
+    ebic = [np.exp(x) for x in allbics]
+    plt.plot(range(25), [x/sum(ebic) for x in ebic], color = "C1", label="True value")
+    plt.xlabel("DAG ID")
+    plt.ylabel("Probabiliry")
+    plt.legend(loc = "upper left")
     plt.show()
 
     

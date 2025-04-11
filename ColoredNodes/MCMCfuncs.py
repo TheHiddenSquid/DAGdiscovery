@@ -223,17 +223,21 @@ def change_partiton(P):
 
 def change_edge(A):
     did_change = False
-    edge = (random.randrange(num_nodes), random.randrange(num_nodes))
+    n1 = random.randrange(num_nodes)
+    n2 = random.randrange(num_nodes)
+    while n2 == n1:
+        n2 = random.randrange(num_nodes)
+    edge = (n1, n2)
 
     if A[edge] == 1:
         A[edge] = 0
         did_change = True
     else:
-        tmp = A.copy()
-        tmp[edge] = 1
-        if utils.is_DAG(tmp):
-            A = tmp
+        A[edge] = 1
+        if utils.is_DAG(A):
             did_change = True
+        else:
+            A[edge] = 0
     
     return A, edge, did_change
 

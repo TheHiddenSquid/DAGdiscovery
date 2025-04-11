@@ -171,9 +171,12 @@ def MCMC_iteration(data, A, P, score_info, move_weights):
             potential_score_info = score_DAG_color_edit(data, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
 
         case "change_edge":
-            A, edge = change_edge(A)
-        
-            potential_score_info = score_DAG_edge_edit(data, A, P, [score_info[1], score_info[2], score_info[3], edge])
+            A, edge, did_change = change_edge(A)
+
+            if did_change:
+                potential_score_info = score_DAG_edge_edit(data, A, P, [score_info[1], score_info[2], score_info[3], edge])
+            else:
+                potential_score_info = score_info
 
 
     # Metropolis algorithm to accept or reject new colored DAG
@@ -219,20 +222,20 @@ def change_partiton(P):
     return P, node_to_change, old_color, new_color
 
 def change_edge(A):
-    while True:
-        edge = (random.randrange(num_nodes), random.randrange(num_nodes))
+    did_change = False
+    edge = (random.randrange(num_nodes), random.randrange(num_nodes))
 
-        if A[edge] == 1:
-            A[edge] = 0
-            break
-        else:
-            tmp = A.copy()
-            tmp[edge] = 1
-            if utils.is_DAG(tmp):
-                A = tmp
-                break
+    if A[edge] == 1:
+        A[edge] = 0
+        did_change = True
+    else:
+        tmp = A.copy()
+        tmp[edge] = 1
+        if utils.is_DAG(tmp):
+            A = tmp
+            did_change = True
     
-    return A, edge
+    return A, edge, did_change
 
 
 

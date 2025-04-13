@@ -18,8 +18,8 @@ def main():
     
 
     # RUN MCM
-    num_chains = 25
-    max_num_nodes = 9  # 9 works?
+    num_chains = 50
+    max_num_nodes = 9  # 9 works
     
     required_iters_min = []
     required_iters_mean = []

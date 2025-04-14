@@ -1,11 +1,6 @@
-import random
 import sys
-import time
 
-import ges
 import matplotlib.pyplot as plt
-import networkx as nx
-import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -15,10 +10,21 @@ import utils
 
 
 def main():
+    #df = pd.read_csv("out_MCMC.csv")
+    #size_options = [4,6,8]
+
+    df = pd.read_csv("out_Greedy.csv")
+    size_options = [5,8,20]
+
+    sample_options = [100, 500, 1000]
+
+    
+    
+
 
     # Setup plots
-    cols = [f"n = {x}" for x in [100,500,1000]]
-    rows = [f"p = {x}" for x in [4,6,8]]
+    cols = [f"n = {x}" for x in sample_options]
+    rows = [f"p = {x}" for x in size_options]
 
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(12, 8))
     plt.setp(axes.flat, xlabel='edge probability', ylabel='SHD')
@@ -40,12 +46,7 @@ def main():
 
 
     # Fill plots with data
-    size_options = [4,6,8]
-    size_options = [3,4,5]
-    sample_options = [100, 500, 1000]
-
-    df = pd.read_csv("out_MCMC.csv")
-    df = pd.read_csv("out_all_algs.csv")
+    
     
     for row in [0,1,2]:
         tmp1_df = df[df["num_nodes"] == size_options[row]]

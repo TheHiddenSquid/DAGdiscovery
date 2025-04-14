@@ -15,9 +15,18 @@ import utils
 
 
 def main():
+    #df = pd.read_csv("out_MCMC.csv")
+    #size_options = [4,6,8]
 
-    cols = [f"n = {x}" for x in [100,500,1000]]
-    rows = [f"p = {x}" for x in [4,6,8]]
+    df = pd.read_csv("out_Greedy.csv")
+    size_options = [5,8,20]
+
+    sample_options = [100, 500, 1000]
+
+
+
+    cols = [f"n = {x}" for x in sample_options]
+    rows = [f"p = {x}" for x in size_options]
 
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(12, 8))
     plt.setp(axes.flat, xlabel='edge probability', ylabel='CHD')
@@ -39,14 +48,10 @@ def main():
 
 
 
-    size_options = [4,6,8]
-    sample_options = [100, 500, 1000]
-
-    df = pd.read_csv("out2colors.csv")
-
 
     for row in [0,1,2]:
         tmp1_df = df[df["num_nodes"] == size_options[row]]
+        tmp1_df = tmp1_df[tmp1_df["num_colors"] == 2]    # Change between 2 and int(size_options[row]/2)
 
         for col in [0,1,2]:
             plt.subplot(3,3, 3*row+col+1)

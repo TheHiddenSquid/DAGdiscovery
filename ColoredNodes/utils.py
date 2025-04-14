@@ -306,9 +306,9 @@ def calc_CHD(P1, P2):
 # Other functions
 
 def generate_color_map(P):
-    if len(P) > 10:
+    if len(P) > 12:
         raise ValueError("Too many colors needed for color-map generation")
-    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink"]
+    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink", "cyan", "gray"]
     length = sum([len(x) for x in P])
     color_map = [None] * length
 

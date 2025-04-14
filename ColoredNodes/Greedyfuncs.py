@@ -1,11 +1,12 @@
 import copy
+import time
 
 import numpy as np
 import utils
 
 # Main functions
 
-def CausalGreedySearch(samples, num_waves = 8):
+def CausalGreedySearch(samples, num_waves = 5):
     
     # Setup global variables
     global num_nodes
@@ -17,15 +18,16 @@ def CausalGreedySearch(samples, num_waves = 8):
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
 
-    # Perform iterations
-    best_A = None
-    best_P = None
-    best_bic = -np.inf
+    # Setup iterations
+    best_A = np.zeros((num_nodes, num_nodes))
+    best_P = [{i} for i in range(num_nodes)]
+    best_bic = score_DAG(samples, best_A, best_P)[0]
 
     edge_probs = list(np.linspace(0,1,num_waves))
     num_colors = [int(x) for x in np.linspace(1,num_nodes,num_waves)]
 
     
+    # Perform iterations
     for i in range(num_waves):
         P, lambda_matrix, _ = utils.generate_colored_DAG(num_nodes, num_colors[i], edge_probs[i])
         A = np.array(lambda_matrix != 0, dtype=np.int64)

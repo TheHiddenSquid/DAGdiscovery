@@ -9,16 +9,22 @@ from scipy.optimize import linear_sum_assignment
 
 # DAG generation
 def generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, p = 0.5):
-    # Generate random DAG
+    # Generate erdős-rényi under-triangular matrix
     edge_array = np.zeros((num_nodes, num_nodes), dtype=np.int64)
-    edges = []
 
     for i in range(num_nodes):
         for j in range(num_nodes):
             if i > j:
                 if p > random.random():
                     edge_array[i,j] = 1
-                    edges.append((i,j))
+
+    # Shuffle nodes
+    G = nx.DiGraph(edge_array)
+    node_mapping = dict(zip(G.nodes(), sorted(G.nodes(), key=lambda k: random.random())))
+    G_new = nx.relabel_nodes(G, node_mapping)
+    edge_array = nx.adjacency_matrix(G_new, node_mapping).todense()
+    edges = list(G_new.edges())
+
 
     # Partition edges into color
     random.shuffle(edges)
@@ -55,6 +61,7 @@ def generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, p = 0.5):
             real_supnodes.append(last)
     super_nodes = [list(x) for x in real_supnodes]
 
+
     # Add potental "solo" supnodes that are not forced by edge colors
     used = [False]*num_nodes
     for supnode in super_nodes:
@@ -83,7 +90,7 @@ def generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, p = 0.5):
 
 
     # Generate omega matrix
-    choices = [random.uniform(0.2,1) for _ in range(num_node_colors)]
+    choices = [random.uniform(0.2,2) for _ in range(num_node_colors)]
     omega_matrix = [None] * num_nodes
     for i, part in enumerate(node_partition):
         for super_node in part:

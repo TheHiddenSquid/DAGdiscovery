@@ -13,8 +13,8 @@ from MCMCfuncs import CausalMCMC, score_DAG
 def main():
     random.seed(4)
     np.random.seed(4)
-    num_nodes = 6
-    num_edge_colors = 5
+    num_nodes = 5
+    num_edge_colors = 3
     num_node_colors = 5
     edge_prob = 0.4
     sample_size = 1000
@@ -50,6 +50,8 @@ def main():
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", found_iter)
     print("MCMC: SHD to real DAG:", utils.calc_SHD(A, real_edge_array))
+    print("MCMC: Node CHD to real DAG:", utils.calc_CHD(real_node_partition, PN))
+    #print("MCMC: Edge CHD to real DAG:", utils.calc_CHD(real_node_partition, PN)) # is hard
     print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_edge_partition, real_node_partition))
 
 

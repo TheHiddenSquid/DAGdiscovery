@@ -170,41 +170,43 @@ def get_sorted_edges(edge_array):
 
     return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
-def score_DAG(samples, edge_array, partition):
-    samples = samples.T
-    
-    num_nodes = samples.shape[0]
-    num_samples = samples.shape[1]
-    BIC_constant = np.log(num_samples)/(num_samples*2)
+def get_supnodes(PE, num_nodes):
+    super_nodes = []
 
-    # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
-    for i in range(num_nodes):
-        parents = get_parents(i, edge_array)
-        ans = np.linalg.lstsq(samples[parents,:].T, samples[i,:].T, rcond=None)[0]
-        edges_ML[parents, i] = ans
+    for part in PE:
+        super_node = set()
+        for edge in part:
+            super_node.add(edge[1])
+        super_nodes.append(super_node)
 
-    # Calculate ML-eval of the different color omegas
-    omegas_ML = [None] * len(partition)
-    bic = 0
+    real_supnodes = []
+    while True:
+        if len(super_nodes) == 0:
+            break
+        edits = 0
+        last = super_nodes.pop()
 
-    for i, part in enumerate(partition):
-        if len(part) == 0:
-            continue
-        tot = 0
-        for node in part:
-            parents = get_parents(node, edge_array)
-            tot += np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
-        omegas_ML[i] = tot / (num_samples * len(part))
+        for part in super_nodes:
+            if len(last.intersection(part)) > 0:
+                super_nodes.remove(part)
+                last = last.union(part)
+                edits += 1
+        if edits > 0:
+            super_nodes.append(last)
+        else:
+            real_supnodes.append(last)
+    super_nodes = [list(x) for x in real_supnodes]
 
+    # Add potental "solo" supnodes that are not forced by edge colors
+    used = [False]*num_nodes
+    for supnode in super_nodes:
+        for node in supnode:
+            used[node] = True
+    needed = [i for i, x in enumerate(used) if x == False]
+    for node in needed:
+        super_nodes.append([node])
 
-        # Calculate BIC
-        bic  += -len(part) * (np.log(omegas_ML[i]) + 1)
-    
-    bic = bic/2 - BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
- 
-
-    return bic
+    return super_nodes
 
 
 # Partition generation and manipulation

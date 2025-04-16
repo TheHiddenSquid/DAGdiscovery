@@ -98,6 +98,9 @@ def generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, p = 0.5):
                 omega_matrix[node] = choices[i]
 
 
+    #optional: flatten node partition
+    node_partition = [sum(x,[]) for x in node_partition]
+    
     return edge_partition, node_partition, lambda_matrix, omega_matrix
 
 def generate_sample(size, lambda_matrix, omega_matrix):
@@ -264,14 +267,13 @@ def generate_node_color_map(PN):
     if len(PN) > 10:
         raise ValueError("Too many colors needed for color-map generation")
     colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink"]
-    length = sum(sum([len(x) for x in y]) for y in PN)
+    length = sum(len(x) for x in PN)
     color_map = [None] * length
     
 
     for i, part in enumerate(PN):
-        for supernode in part:
-            for node in supernode:
-                color_map[node] = colors[i]
+        for node in part:
+            color_map[node] = colors[i]
 
     return color_map
 

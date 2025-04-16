@@ -21,7 +21,7 @@ def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
     
 
     # Setup for iters
-    score = score_DAG(data, A, PE, PN)
+    score = score_DAG(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
     best_A = A.copy()
     best_PE = copy.deepcopy(PE)
     best_PN = copy.deepcopy(PN)
@@ -41,14 +41,13 @@ def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
             best_iter = i
         num_fails += fail
 
+    # Flatten node partition
+    best_PN = [sum(x,[]) for x in best_PN]
     if debug: 
         return best_A, best_PE, best_PN, best_score, best_iter, num_fails
     else:
         return best_A, best_PE, best_PN, best_score
-    
-
-   
-    
+      
 def MCMC_iteration(samples, A, PE, PN, score, move_weights):
     # Check what moves are possible and pick one at random
     old_A = A.copy()
@@ -70,7 +69,7 @@ def MCMC_iteration(samples, A, PE, PN, score, move_weights):
         case "change_edge":
             A, PE, PN = add_remove_edge(A, PE, PN)
         
-    potential_score = score_DAG(samples, A, PE, PN)
+    potential_score = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
 
 
     # Metropolis Hastings to accept or reject new colored DAG
@@ -82,8 +81,8 @@ def MCMC_iteration(samples, A, PE, PN, score, move_weights):
         PE = old_PE
         PN = old_PN 
         new_score = score
-
-    
+        failed = 1
+ 
     return A, PE, PN, new_score, failed
 
 
@@ -131,7 +130,7 @@ def change_edge_partiton(A, PE, PN):
 
 
     # Add back split super nodes to PN and remove duplicates
-    new_super_nodes = get_supnodes(PE, num_nodes)
+    new_super_nodes = utils.get_supnodes(PE, num_nodes)
     changed_super_nodes = []
     for new_super_node in new_super_nodes:
         for node in old_super_node:
@@ -189,102 +188,55 @@ def change_node_partiton(PN):
 def add_remove_edge(A, PE, PN):
     num_nodes = A.shape[0]
     
-    while True:
-        edge = (random.randrange(num_nodes), random.randrange(num_nodes))
 
-        if A[edge] == 1:
-            # Find super node with edge[1] in it and remove it from PN
-            old_part = None
-            old_super_node = None
-            for part in PN:
-                for super_node in part:
-                    if edge[1] in super_node:
-                        old_part = part
-                        old_super_node = super_node.copy()
-                        part.remove(super_node)
-                        break
+    edge = (random.randrange(num_nodes), random.randrange(num_nodes))
 
-
-            # Remove edge from A and PE
-            A[edge] = 0
-            for part in PE:
-                if edge in part:
-                    part.remove(edge)
+    if A[edge] == 1:
+        # Find super node with edge[1] in it and remove it from PN
+        old_part = None
+        old_super_node = None
+        for part in PN:
+            for super_node in part:
+                if edge[1] in super_node:
+                    old_part = part
+                    old_super_node = super_node.copy()
+                    part.remove(super_node)
                     break
-            PE = [x for x in PE if len(x)>0]
 
 
-            # Add back split super nodes to PN
-            new_super_nodes = get_supnodes(PE, num_nodes)
-            changed_super_nodes = []
-            for new_super_node in new_super_nodes:
-                for node in old_super_node:
-                    if node in new_super_node and new_super_node not in changed_super_nodes:
-                        changed_super_nodes.append(new_super_node)
-
-            for new_super_node in changed_super_nodes:
-                old_part.append(new_super_node)
-
-            break
-
-        else:
-            tmp = A.copy()
-            tmp[edge] = 1
-            if utils.is_DAG(tmp):
-                A = tmp
-                PE.append([edge])
+        # Remove edge from A and PE
+        A[edge] = 0
+        for part in PE:
+            if edge in part:
+                part.remove(edge)
                 break
+        PE = [x for x in PE if len(x)>0]
+
+
+        # Add back split super nodes to PN
+        new_super_nodes = utils.get_supnodes(PE, num_nodes)
+        changed_super_nodes = []
+        for new_super_node in new_super_nodes:
+            for node in old_super_node:
+                if node in new_super_node and new_super_node not in changed_super_nodes:
+                    changed_super_nodes.append(new_super_node)
+
+        for new_super_node in changed_super_nodes:
+            old_part.append(new_super_node)
+
+    else:
+        tmp = A.copy()
+        tmp[edge] = 1
+        if utils.is_DAG(tmp):
+            A = tmp
+            PE.append([edge])
     
     return A, PE, PN
 
 
 
-
-
-def get_supnodes(PE, num_nodes):
-    super_nodes = []
-
-    for part in PE:
-        super_node = set()
-        for edge in part:
-            super_node.add(edge[1])
-        super_nodes.append(super_node)
-
-    real_supnodes = []
-    while True:
-        if len(super_nodes) == 0:
-            break
-        edits = 0
-        last = super_nodes.pop()
-
-        for part in super_nodes:
-            if len(last.intersection(part)) > 0:
-                super_nodes.remove(part)
-                last = last.union(part)
-                edits += 1
-        if edits > 0:
-            super_nodes.append(last)
-        else:
-            real_supnodes.append(last)
-    super_nodes = [list(x) for x in real_supnodes]
-
-    # Add potental "solo" supnodes that are not forced by edge colors
-    used = [False]*num_nodes
-    for supnode in super_nodes:
-        for node in supnode:
-            used[node] = True
-    needed = [i for i, x in enumerate(used) if x == False]
-    for node in needed:
-        super_nodes.append([node])
-
-    return super_nodes
-
-
-
-
 # For DAG heuristic
-def score_DAG(data, A, PE, PN):
-    return 1
+def score_DAG(data, A, PE, PN_flat):
     data = data.T
     
     global num_nodes
@@ -295,23 +247,33 @@ def score_DAG(data, A, PE, PN):
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
     # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    edges_ML_tmp = np.zeros((num_nodes,num_nodes), dtype=np.float64)
     for i in range(num_nodes):
         parents = utils.get_parents(i, A)
         ans = np.linalg.lstsq(data[parents,:].T, data[i,:].T, rcond=None)[0]
-        edges_ML[parents, i] = ans
+        edges_ML_tmp[parents, i] = ans
+
+    # Block the lambdas as averages
+    edges_ML_real = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    for block in PE:
+        tot = 0
+        for edge in block:
+            tot += edges_ML_tmp[edge]
+        block_lambda = tot/len(block)
+        for edge in block:
+            edges_ML_real[edge] = block_lambda
 
     # Calculate ML-eval of the different color omegas
     omegas_ML = [None] * num_nodes
     bic_decomp = [0] * num_nodes
 
-    for i, part in enumerate(P):
+    for i, part in enumerate(PN_flat):
         if len(part) == 0:
             continue
         tot = 0
         for node in part:
             parents = utils.get_parents(node, A)
-            tot += np.dot(x:=(data[node,:] - edges_ML[parents,node].T @ data[parents,:]), x)
+            tot += np.dot(x:=(data[node,:] - edges_ML_tmp[parents,node].T @ data[parents,:]), x)
         omegas_ML[i] = tot / (num_samples * len(part))
 
 
@@ -319,10 +281,9 @@ def score_DAG(data, A, PE, PN):
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
+    bic -= BIC_constant * len(PN_flat) * len(PE)
 
-
-    return [bic, edges_ML, omegas_ML, bic_decomp]
+    return bic
 
 
 

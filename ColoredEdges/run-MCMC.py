@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import utils
-from MCMCfuncs import CausalMCMC
+from MCMCfuncs import CausalMCMC, score_DAG
 
 
 def main():
@@ -21,9 +21,8 @@ def main():
     MCMC_iterations = 10_000
 
     real_edge_partition, real_node_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, edge_prob)
-    edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
+    real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
 
-   
 
     fig, ((ax1, ax2)) = plt.subplots(1, 2)
     plt.tight_layout()
@@ -31,7 +30,7 @@ def main():
 
     # Plot data generating graph
     plt.axes(ax1)
-    G = nx.DiGraph(edge_array)
+    G = nx.DiGraph(real_edge_array)
     nx.draw_circular(G, node_color=utils.generate_node_color_map(real_node_partition), edge_color=utils.generate_edge_color_map(G, real_edge_partition), with_labels=True)
     plt.title("Real DAG")
 
@@ -42,14 +41,23 @@ def main():
     
 
     t = time.perf_counter()
-    A, PE, PN, bic = CausalMCMC(samples, MCMC_iterations)
+    A, PE, PN, bic, found_iter, num_fails = CausalMCMC(samples, MCMC_iterations, debug=True)
+
+    print("Result of running causalMCMC")
+    print(f"It took {time.perf_counter()-t} seconds")
+    print(f"Ran for {MCMC_iterations} iterations")
+    print(f"Failed to jump {num_fails} times")
+    print("Found DAG with BIC:", bic)
+    print("Found on iteration:", found_iter)
+    print("MCMC: SHD to real DAG:", utils.calc_SHD(A, real_edge_array))
+    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_edge_partition, real_node_partition))
+
+
+
     
     G = nx.DiGraph(A)
     nx.draw_circular(G, node_color=utils.generate_node_color_map(PN), edge_color=utils.generate_edge_color_map(G, PE), with_labels=True)
-
-
     plt.title("Found DAG")
-
     plt.show()
 
     

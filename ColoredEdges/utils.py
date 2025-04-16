@@ -269,6 +269,8 @@ def generate_node_color_map(PN):
     if len(PN) > 10:
         raise ValueError("Too many colors needed for color-map generation")
     colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink"]
+
+    PN = sorted_partition(PN)
     length = sum(len(x) for x in PN)
     color_map = [None] * length
     

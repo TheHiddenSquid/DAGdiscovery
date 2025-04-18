@@ -281,7 +281,7 @@ def score_DAG(data, A, PE, PN_flat):
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
     
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * len(PN_flat) * len(PE)
+    bic -= BIC_constant * (np.sum(A) + len(PN_flat) + len(PE))
 
     return bic
 

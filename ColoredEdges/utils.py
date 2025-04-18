@@ -266,9 +266,9 @@ def calc_CHD(P1, P2):
 # Other functions
 
 def generate_node_color_map(PN):
-    if len(PN) > 10:
+    if len(PN) > 12:
         raise ValueError("Too many colors needed for color-map generation")
-    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink"]
+    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink", "cyan", "gray"]
 
     PN = sorted_partition(PN)
     length = sum(len(x) for x in PN)
@@ -282,9 +282,9 @@ def generate_node_color_map(PN):
     return color_map
 
 def generate_edge_color_map(G, PE):
-    if len(PE) > 10:
+    if len(PE) > 12:
         raise ValueError("Too many colors needed for color-map generation")
-    colors = ["red", "green", "blue", "purple", "yellow", "brown", "white", "black", "orange", "pink"]
+    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink", "cyan", "gray"]
     num_edges = sum([len(x) for x in PE])
     color_map = [None] * num_edges
 

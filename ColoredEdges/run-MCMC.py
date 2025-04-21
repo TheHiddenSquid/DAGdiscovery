@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import utils
-from MCMCfuncs import CausalMCMC, score_DAG
+from MCMCfuncs import CausalMCMC
 
 
 def main():
@@ -18,7 +18,7 @@ def main():
     num_node_colors = 5
     edge_prob = 0.4
     sample_size = 1000
-    MCMC_iterations = 10_000
+    MCMC_iterations = 100_000    # 100_000 iters 7.7 sec on 4 nodes
 
     real_edge_partition, real_node_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
@@ -51,10 +51,8 @@ def main():
     print("Found on iteration:", found_iter)
     print("MCMC: SHD to real DAG:", utils.calc_SHD(A, real_edge_array))
     print("MCMC: Node CHD to real DAG:", utils.calc_CHD(real_node_partition, PN))
-    #print("MCMC: Edge CHD to real DAG:", utils.calc_CHD(real_node_partition, PN)) # is hard
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_edge_partition, real_node_partition))
-
-
+    print("MCMC: Edge CSHD to real DAG:", utils.calc_CSHD(A, real_edge_array, PE, real_edge_partition))
+    print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_edge_partition, real_node_partition))
 
     
     G = nx.DiGraph(A)

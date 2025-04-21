@@ -300,7 +300,7 @@ def score_DAG(data, A, PE, PN_flat):
     data = data.T
     num_samples = data.shape[1]
     num_nodes = data.shape[0]
-    data_S = data.T @ data / num_samples
+    data_S = data @ data.T / num_samples
 
     # Calculate ML-eval of the different lambdas
     edges_ML_ungrouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)

@@ -7,12 +7,20 @@ import utils
 # Main MCMC functions
 
 def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
+
+    # Setup constants
+    global num_samples
+    global num_nodes
+    global data_S
+    num_samples = data.shape[0]
+    num_nodes = data.shape[1]
+    data_S = data.T @ data / num_samples
    
+
     # Check that wieghts are legal
     move_weights = [0.3, 0.3, 0.4]
     move_weights = [1, 1, 1]
-    num_nodes = data.shape[1]
-    
+
 
     # Fully random colored DAG
     A = np.zeros((num_nodes, num_nodes), dtype=np.int64)
@@ -21,7 +29,7 @@ def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
     
 
     # Setup for iters
-    score, _ = score_DAG(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
+    score, *ML_data = score_DAG(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
     best_A = A.copy()
     best_PE = copy.deepcopy(PE)
     best_PN = copy.deepcopy(PN)
@@ -31,7 +39,7 @@ def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
 
     # Run MCMC iters    
     for i in range(num_iters):
-        A, PE, PN, score, fail = MCMC_iteration(data, A, PE, PN, score, move_weights) 
+        A, PE, PN, score, ML_data, fail = MCMC_iteration(data, A, PE, PN, score, ML_data, move_weights) 
 
         if score >= best_score:
             best_A = A.copy()
@@ -48,11 +56,12 @@ def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
     else:
         return best_A, best_PE, best_PN, best_score
       
-def MCMC_iteration(samples, A, PE, PN, score, move_weights):
+def MCMC_iteration(samples, A, PE, PN, score, ML_data, move_weights):
     # Check what moves are possible and pick one at random
     old_A = A.copy()
     old_PE = copy.deepcopy(PE)
     old_PN = copy.deepcopy(PN)
+    old_ML_data = copy.deepcopy(ML_data)
 
 
     moves = ["change_edge_color", "change_node_color",  "change_edge"]
@@ -62,32 +71,31 @@ def MCMC_iteration(samples, A, PE, PN, score, move_weights):
     match move:
         case "change_edge_color":
             PE, PN = change_edge_partiton(A, PE, PN)
-            #potential_score = score_DAG_color_edit(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
-            potential_score, _ = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+            potential_score, *potential_ML_data = score_DAG_color_edit(samples, A, PE, [sum(x,[]) for x in PN], ML_data)
 
         case "change_node_color":
             PN = change_node_partiton(PN)
-            #potential_score = score_DAG_color_edit(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
-            potential_score, _ = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
-
+            potential_score, *potential_ML_data = score_DAG_color_edit(samples, A, PE, [sum(x,[]) for x in PN], ML_data)
 
         case "change_edge":
             A, PE, PN = add_remove_edge(A, PE, PN)
-            potential_score, _ = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+            potential_score, *potential_ML_data = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
 
 
     # Metropolis Hastings to accept or reject new colored DAG
     if random.random() <= np.exp(potential_score - score):
         new_score = potential_score
+        new_ML_data = potential_ML_data
         failed = 0
     else:
         A = old_A
         PE = old_PE
         PN = old_PN 
         new_score = score
+        new_ML_data = old_ML_data
         failed = 1
  
-    return A, PE, PN, new_score, failed
+    return A, PE, PN, new_score, new_ML_data, failed
 
 
 
@@ -244,13 +252,9 @@ def add_remove_edge(A, PE, PN):
 # For DAG heuristic
 def score_DAG(data, A, PE, PN_flat):
     data = data.T
-    
+    global data_S
     global num_nodes
     global num_samples
-    global BIC_constant
-    num_nodes = data.shape[0]
-    num_samples = data.shape[1]
-    BIC_constant = np.log(num_samples)/(num_samples*2)
 
     # Calculate ML-eval of the different lambdas
     edges_ML_ungrouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -276,7 +280,6 @@ def score_DAG(data, A, PE, PN_flat):
 
     # Block the omegas as averages
     omegas_ML_grouped = [None] * num_nodes
-    bic_decomp = []
     for part in PN_flat:
         tot = 0
         for node in part:
@@ -284,52 +287,49 @@ def score_DAG(data, A, PE, PN_flat):
         block_omega = tot/len(part)
         for node in part:
             omegas_ML_grouped[node] = block_omega
-        bic_decomp.append(-len(part) * (np.log(block_omega) + 1))
-   
+       
+    # Calculate BIC 
+    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
 
-    
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (np.sum(A) + len(PN_flat) + len(PE))
+    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (np.sum(A) + len(PN_flat) + len(PE)))
 
-    return bic, edges_ML_ungrouped
+    return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
-def score_DAG_color_edit(data, A, PE, PN_flat):
+def score_DAG_color_edit(data, A, PE, PN_flat, ML_data):
     data = data.T
-    
+    global data_S
     global num_nodes
     global num_samples
-    global BIC_constant
-    global edges_ML_tmp
- 
 
+    edges_ML_ungrouped, omegas_ML_ungrouped = ML_data
+   
     # Block the lambdas as averages
-    edges_ML_real = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
     for block in PE:
         tot = 0
         for edge in block:
-            tot += edges_ML_tmp[edge]
+            tot += edges_ML_ungrouped[edge]
         block_lambda = tot/len(block)
         for edge in block:
-            edges_ML_real[edge] = block_lambda
+            edges_ML_grouped[edge] = block_lambda
 
-    # Calculate ML-eval of the different color omegas
-    omegas_ML = [None] * num_nodes
-    bic_decomp = [0] * num_nodes
-
-    for i, part in enumerate(PN_flat):
+  
+    # Block the omegas as averages
+    omegas_ML_grouped = [None] * num_nodes
+    for part in PN_flat:
         tot = 0
         for node in part:
-            parents = utils.get_parents(node, A)
-            tot += np.dot(x:=(data[node,:] - edges_ML_tmp[parents,node].T @ data[parents,:]), x)
-        omegas_ML[i] = tot / (num_samples * len(part))
+            tot += omegas_ML_ungrouped[node]
+        block_omega = tot/len(part)
+        for node in part:
+            omegas_ML_grouped[node] = block_omega
+       
+    # Calculate BIC 
+    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
 
-        # Calculate BIC
-        bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
-    
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (np.sum(A) + len(PN_flat) + len(PE))
+    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (np.sum(A) + len(PN_flat) + len(PE)))
 
-    return bic
+    return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
 
 def main():

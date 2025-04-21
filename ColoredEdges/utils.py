@@ -339,7 +339,7 @@ def score_DAG(data, A, PE, PN_flat):
 
     bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (np.sum(A) + len(PN_flat) + len(PE)))
 
-    return bic, edges_ML_ungrouped, omegas_ML_ungrouped
+    return bic
 
 
 # Other functions

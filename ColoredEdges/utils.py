@@ -242,6 +242,39 @@ def sorted_partition(partition):
 def calc_SHD(A, B):
     return np.sum(np.abs(A-B))
 
+def calc_CSHD(A, B, PE1, PE2):
+    tmp_p1 = copy.deepcopy(PE1)
+    tmp_p2 = copy.deepcopy(PE2)
+
+    num_nodes = A.shape[0]
+
+    # Add a block with all nonexistant edges
+    zero_block1 = []
+    zero_block2 = []
+    for i in range(num_nodes):
+        for j in range(num_nodes):
+            if A[i,j] == 0:
+                zero_block1.append((i,j))
+            if B[i,j] == 0:
+                zero_block2.append((i,j))    
+    tmp_p1.append(zero_block1)
+    tmp_p2.append(zero_block2)
+
+
+    num_colors = max(len(tmp_p1), len(tmp_p2))
+    tmp_p1 += [[]]*(num_colors - len(tmp_p1))
+    tmp_p2 += [[]]*(num_colors - len(tmp_p2))
+
+    cost_matrix = np.zeros((num_colors, num_colors), dtype="int")
+    for i in range(num_colors):
+        for j in range(num_colors):
+            cost_matrix[i,j] = len(set(tmp_p1[i]).intersection(set(tmp_p2[j])))
+            
+    row_ind, col_ind = linear_sum_assignment(cost_matrix, maximize=True)
+
+    return num_nodes**2 - cost_matrix[row_ind, col_ind].sum()
+
+
 def calc_CHD(P1, P2):
     tmp_p1 = P1.copy()
     tmp_p2 = P2.copy()

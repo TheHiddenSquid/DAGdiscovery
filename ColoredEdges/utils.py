@@ -274,7 +274,6 @@ def calc_CSHD(A, B, PE1, PE2):
 
     return num_nodes**2 - cost_matrix[row_ind, col_ind].sum()
 
-
 def calc_CHD(P1, P2):
     tmp_p1 = P1.copy()
     tmp_p2 = P2.copy()
@@ -294,6 +293,53 @@ def calc_CHD(P1, P2):
 
     return num_nodes - cost_matrix[row_ind, col_ind].sum()
 
+
+
+# Find BIC of DAG given sample
+def score_DAG(data, A, PE, PN_flat):
+    data = data.T
+    num_samples = data.shape[1]
+    num_nodes = data.shape[0]
+    data_S = data.T @ data / num_samples
+
+    # Calculate ML-eval of the different lambdas
+    edges_ML_ungrouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    for i in range(num_nodes):
+        parents = get_parents(i, A)
+        edges_ML_ungrouped[parents, i] = np.linalg.lstsq(data[parents,:].T, data[i,:].T, rcond=None)[0]
+
+    # Block the lambdas as averages
+    edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    for block in PE:
+        tot = 0
+        for edge in block:
+            tot += edges_ML_ungrouped[edge]
+        block_lambda = tot/len(block)
+        for edge in block:
+            edges_ML_grouped[edge] = block_lambda
+
+    # Calculate ML-eval of the different color omegas
+    omegas_ML_ungrouped = [None] * num_nodes
+    for node in range(num_nodes):
+        parents = get_parents(node, A)
+        omegas_ML_ungrouped[node] = np.dot(x:=(data[node,:] - edges_ML_ungrouped[parents,node].T @ data[parents,:]), x) / num_samples
+
+    # Block the omegas as averages
+    omegas_ML_grouped = [None] * num_nodes
+    for part in PN_flat:
+        tot = 0
+        for node in part:
+            tot += omegas_ML_ungrouped[node]
+        block_omega = tot/len(part)
+        for node in part:
+            omegas_ML_grouped[node] = block_omega
+       
+    # Calculate BIC 
+    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
+
+    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (np.sum(A) + len(PN_flat) + len(PE)))
+
+    return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
 
 # Other functions

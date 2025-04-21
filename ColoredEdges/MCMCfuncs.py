@@ -29,7 +29,7 @@ def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
     
 
     # Setup for iters
-    score, *ML_data = score_DAG(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
+    score, *ML_data = score_DAG_full(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
     best_A = A.copy()
     best_PE = copy.deepcopy(PE)
     best_PN = copy.deepcopy(PN)
@@ -61,8 +61,6 @@ def MCMC_iteration(samples, A, PE, PN, score, ML_data, move_weights):
     old_A = A.copy()
     old_PE = copy.deepcopy(PE)
     old_PN = copy.deepcopy(PN)
-    old_ML_data = copy.deepcopy(ML_data)
-
 
     moves = ["change_edge_color", "change_node_color",  "change_edge"]
     move = random.choices(moves, weights=move_weights)[0]
@@ -79,7 +77,7 @@ def MCMC_iteration(samples, A, PE, PN, score, ML_data, move_weights):
 
         case "change_edge":
             A, PE, PN = add_remove_edge(A, PE, PN)
-            potential_score, *potential_ML_data = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+            potential_score, *potential_ML_data = score_DAG_full(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
 
 
     # Metropolis Hastings to accept or reject new colored DAG
@@ -92,7 +90,7 @@ def MCMC_iteration(samples, A, PE, PN, score, ML_data, move_weights):
         PE = old_PE
         PN = old_PN 
         new_score = score
-        new_ML_data = old_ML_data
+        new_ML_data = ML_data
         failed = 1
  
     return A, PE, PN, new_score, new_ML_data, failed
@@ -250,7 +248,7 @@ def add_remove_edge(A, PE, PN):
 
 
 # For DAG heuristic
-def score_DAG(data, A, PE, PN_flat):
+def score_DAG_full(data, A, PE, PN_flat):
     data = data.T
     global data_S
     global num_nodes

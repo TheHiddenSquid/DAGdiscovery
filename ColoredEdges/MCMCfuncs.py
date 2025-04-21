@@ -21,7 +21,7 @@ def CausalMCMC(data, num_iters = None, move_weights = None, debug = False):
     
 
     # Setup for iters
-    score = score_DAG(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
+    score, _ = score_DAG(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
     best_A = A.copy()
     best_PE = copy.deepcopy(PE)
     best_PN = copy.deepcopy(PN)
@@ -62,14 +62,18 @@ def MCMC_iteration(samples, A, PE, PN, score, move_weights):
     match move:
         case "change_edge_color":
             PE, PN = change_edge_partiton(A, PE, PN)
+            #potential_score = score_DAG_color_edit(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+            potential_score, _ = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
 
         case "change_node_color":
             PN = change_node_partiton(PN)
+            #potential_score = score_DAG_color_edit(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+            potential_score, _ = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+
 
         case "change_edge":
             A, PE, PN = add_remove_edge(A, PE, PN)
-        
-    potential_score = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+            potential_score, _ = score_DAG(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
 
 
     # Metropolis Hastings to accept or reject new colored DAG
@@ -150,6 +154,8 @@ def change_edge_partiton(A, PE, PN):
 
     for new_super_node in changed_super_nodes:
         old_PN_part.append(new_super_node)
+
+    PN = [x for x in PN if len(x)>0]
 
     return PE, PN
 
@@ -247,11 +253,54 @@ def score_DAG(data, A, PE, PN_flat):
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
     # Calculate ML-eval of the different lambdas
-    edges_ML_tmp = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    edges_ML_ungrouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
     for i in range(num_nodes):
         parents = utils.get_parents(i, A)
-        ans = np.linalg.lstsq(data[parents,:].T, data[i,:].T, rcond=None)[0]
-        edges_ML_tmp[parents, i] = ans
+        edges_ML_ungrouped[parents, i] = np.linalg.lstsq(data[parents,:].T, data[i,:].T, rcond=None)[0]
+
+    # Block the lambdas as averages
+    edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    for block in PE:
+        tot = 0
+        for edge in block:
+            tot += edges_ML_ungrouped[edge]
+        block_lambda = tot/len(block)
+        for edge in block:
+            edges_ML_grouped[edge] = block_lambda
+
+    # Calculate ML-eval of the different color omegas
+    omegas_ML_ungrouped = [None] * num_nodes
+    for node in range(num_nodes):
+        parents = utils.get_parents(node, A)
+        omegas_ML_ungrouped[node] = np.dot(x:=(data[node,:] - edges_ML_ungrouped[parents,node].T @ data[parents,:]), x) / num_samples
+
+    # Block the omegas as averages
+    omegas_ML_grouped = [None] * num_nodes
+    bic_decomp = []
+    for part in PN_flat:
+        tot = 0
+        for node in part:
+            tot += omegas_ML_ungrouped[node]
+        block_omega = tot/len(part)
+        for node in part:
+            omegas_ML_grouped[node] = block_omega
+        bic_decomp.append(-len(part) * (np.log(block_omega) + 1))
+   
+
+    
+    bic = sum(bic_decomp) / 2
+    bic -= BIC_constant * (np.sum(A) + len(PN_flat) + len(PE))
+
+    return bic, edges_ML_ungrouped
+
+def score_DAG_color_edit(data, A, PE, PN_flat):
+    data = data.T
+    
+    global num_nodes
+    global num_samples
+    global BIC_constant
+    global edges_ML_tmp
+ 
 
     # Block the lambdas as averages
     edges_ML_real = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -268,14 +317,11 @@ def score_DAG(data, A, PE, PN_flat):
     bic_decomp = [0] * num_nodes
 
     for i, part in enumerate(PN_flat):
-        if len(part) == 0:
-            continue
         tot = 0
         for node in part:
             parents = utils.get_parents(node, A)
             tot += np.dot(x:=(data[node,:] - edges_ML_tmp[parents,node].T @ data[parents,:]), x)
         omegas_ML[i] = tot / (num_samples * len(part))
-
 
         # Calculate BIC
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
@@ -284,7 +330,6 @@ def score_DAG(data, A, PE, PN_flat):
     bic -= BIC_constant * (np.sum(A) + len(PN_flat) + len(PE))
 
     return bic
-
 
 
 def main():

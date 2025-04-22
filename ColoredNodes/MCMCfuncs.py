@@ -67,7 +67,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
     # Calculate number of iterations
     if num_iters is None:
-        num_iters = 50 * 4**num_nodes
+        num_iters = 25 * 5**num_nodes
         if num_nodes > 8:
             print("Warning! Default number of iterations on more than 8 variables is too big. Set to 50*4^8")
             num_iters = 50 * 4**8

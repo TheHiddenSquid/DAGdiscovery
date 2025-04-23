@@ -1,28 +1,14 @@
-import random
-import sys
-import time
-
-import ges
 import matplotlib.pyplot as plt
-import networkx as nx
-import numpy as np
 import pandas as pd
 import seaborn as sns
 
-sys.path.append("../")
-import MCMCfuncs
-import utils
-
 
 def main():
-    #df = pd.read_csv("out_MCMC.csv")
-    #size_options = [4,6,8]
+    df = pd.read_csv("out_all_algs.csv")
+    df = df[df["Algorithm"] != "GES"]
 
-    df = pd.read_csv("out_Greedy.csv")
     size_options = [5,8,20]
-
     sample_options = [100, 500, 1000]
-
 
 
     cols = [f"n = {x}" for x in sample_options]
@@ -47,16 +33,14 @@ def main():
     fig.subplots_adjust(left=0.15, top=0.95)
 
 
-
-
     for row in [0,1,2]:
         tmp1_df = df[df["num_nodes"] == size_options[row]]
-        tmp1_df = tmp1_df[tmp1_df["num_colors"] == 2]    # Change between 2 and int(size_options[row]/2)
+        tmp1_df = tmp1_df[tmp1_df["num_colors"] == int(size_options[row]/2)]    # Change between 2 and int(size_options[row]/2)
 
         for col in [0,1,2]:
             plt.subplot(3,3, 3*row+col+1)
             tmp2_df = tmp1_df[tmp1_df["num_samples"] == sample_options[col]]
-            sns.boxplot(data=tmp2_df, x="edge_prob", y="CHD", color="green")
+            sns.boxplot(data=tmp2_df, x="edge_prob", y="CHD", hue="Algorithm", palette="viridis")
   
     plt.show()
 

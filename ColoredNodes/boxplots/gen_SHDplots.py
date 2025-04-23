@@ -1,25 +1,12 @@
-import sys
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-sys.path.append("../")
-import MCMCfuncs
-import utils
-
 
 def main():
-    #df = pd.read_csv("out_MCMC.csv")
-    #size_options = [4,6,8]
-
-    df = pd.read_csv("out_Greedy.csv")
+    df = pd.read_csv("out_all_algs.csv")
     size_options = [5,8,20]
-
     sample_options = [100, 500, 1000]
-
-    
-    
 
 
     # Setup plots
@@ -55,7 +42,7 @@ def main():
         for col in [0,1,2]:
             plt.subplot(3,3, 3*row+col+1)
             tmp2_df = tmp1_df[tmp1_df["num_samples"] == sample_options[col]]
-            sns.boxplot(data=tmp2_df, x="edge_prob", y="SHD", hue="Algorithm")
+            sns.boxplot(data=tmp2_df, x="edge_prob", y="SHD", hue="Algorithm", palette="rocket_r")
   
     plt.show()
 

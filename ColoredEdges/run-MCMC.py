@@ -13,12 +13,12 @@ from MCMCfuncs import CausalMCMC
 def main():
     random.seed(4)
     np.random.seed(4)
-    num_nodes = 5
+    num_nodes = 4
     num_edge_colors = 3
     num_node_colors = 5
     edge_prob = 0.4
     sample_size = 1000
-    MCMC_iterations = 100_000    # 100_000 iters 7.7 sec on 4 nodes
+    MCMC_iterations = 100_000    # 100_000 iters 6.9 sec on 4 nodes
 
     real_edge_partition, real_node_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)

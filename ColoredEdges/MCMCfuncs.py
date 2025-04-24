@@ -68,7 +68,7 @@ def MCMC_iteration(samples, A, PE, PN, score, ML_data, move_weights):
     # Create new colored DAG based on move
     match move:
         case "change_edge_color":
-            PE, PN = change_edge_partiton(A, PE, PN)
+            PE, PN = change_edge_partiton(PE, PN)
             potential_score, *potential_ML_data = score_DAG_color_edit(samples, A, PE, [sum(x,[]) for x in PN], ML_data)
 
         case "change_node_color":
@@ -98,15 +98,16 @@ def MCMC_iteration(samples, A, PE, PN, score, ML_data, move_weights):
 
 
 # For moves
-def change_edge_partiton(A, PE, PN):
+def change_edge_partiton(PE, PN):
     # Find edge to change
-    num_nodes = A.shape[0]
-    edges_in_DAG, _, _ = utils.get_sorted_edges(A)
+    num_edges = sum(len(x) for x in PE)
 
-    if len(edges_in_DAG) == 0 or len(edges_in_DAG) == 1:
+    if num_edges == 0 or num_edges == 1:
         return PE, PN
     else:
-        edge_to_change = random.choice(edges_in_DAG)
+        # Can be optimized to not use edges_in_DAG
+        rand_block = random.choices(PE, weights=[len(x) for x in PE])[0]
+        edge_to_change = random.choice(rand_block)
 
     # Find super node with edge[1] in it and remove it from PN
     old_PN_part = None

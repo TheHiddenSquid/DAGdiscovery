@@ -1,4 +1,5 @@
 import copy
+import pickle
 import random
 
 import numpy as np
@@ -41,8 +42,9 @@ def CausalGreedySearch(data, num_waves = 5):
         score, *ML_data = score_DAG_full(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
     
         done = False
-        i=0
+        j=0
         while not done:
+            print(j)
             A, PE, PN, score, ML_data, done = greedy_iteration(data, A, PE, PN, score, ML_data) 
 
             if score >= best_score:
@@ -50,8 +52,7 @@ def CausalGreedySearch(data, num_waves = 5):
                 best_PE = copy.deepcopy(PE)
                 best_PN = copy.deepcopy(PN)
                 best_score = score
-            i+=1
-            print(i)
+            j+=1
 
     # Flatten node partition
     best_PN = [sum(x,[]) for x in best_PN]
@@ -59,20 +60,23 @@ def CausalGreedySearch(data, num_waves = 5):
     return best_A, best_PE, best_PN, best_score
       
 def greedy_iteration(samples, A, PE, PN, score, ML_data):
+    old_PE = pickle.dumps(PE, -1)
+    old_PN = pickle.dumps(PN, -1)
+
     best_A = A.copy()
-    best_PE = copy.deepcopy(PE)
-    best_PN = copy.deepcopy(PN)
+    best_PE = pickle.loads(old_PE)
+    best_PN = pickle.loads(old_PN)
     best_score = score
     best_ML_data = ML_data
 
-    num_trys = 500
+    num_trys = 100
     for _ in range(num_trys):
         pot_A = A.copy()
-        pot_PE = copy.deepcopy(PE)
-        pot_PN = copy.deepcopy(PN)
+        pot_PE = pickle.loads(old_PE)
+        pot_PN = pickle.loads(old_PN)
         pot_score = score
         pot_ML_data = ML_data
-        pot_PE, pot_PN = change_edge_partiton(pot_A, pot_PE, pot_PN)
+        pot_PE, pot_PN = change_edge_partiton(pot_PE, pot_PN)
         pot_score, *pot_ML_data = score_DAG_color_edit(samples, pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
 
         if pot_score > best_score:
@@ -85,8 +89,8 @@ def greedy_iteration(samples, A, PE, PN, score, ML_data):
 
     for _ in range(num_trys):
         pot_A = A.copy()
-        pot_PE = copy.deepcopy(PE)
-        pot_PN = copy.deepcopy(PN)
+        pot_PE = pickle.loads(old_PE)
+        pot_PN = pickle.loads(old_PN)
         pot_score = score
         pot_ML_data = ML_data
         pot_PN = change_node_partiton(pot_PN)
@@ -101,8 +105,8 @@ def greedy_iteration(samples, A, PE, PN, score, ML_data):
 
     for _ in range(num_trys):
         pot_A = A.copy()
-        pot_PE = copy.deepcopy(PE)
-        pot_PN = copy.deepcopy(PN)
+        pot_PE = pickle.loads(old_PE)
+        pot_PN = pickle.loads(old_PN)
         pot_score = score
         pot_ML_data = ML_data
         pot_A, pot_PE, pot_PN = add_remove_edge(pot_A, pot_PE, pot_PN)
@@ -132,15 +136,16 @@ def greedy_iteration(samples, A, PE, PN, score, ML_data):
 
 
 # For moves
-def change_edge_partiton(A, PE, PN):
+def change_edge_partiton(PE, PN):
     # Find edge to change
-    num_nodes = A.shape[0]
-    edges_in_DAG, _, _ = utils.get_sorted_edges(A)
+    num_edges = sum(len(x) for x in PE)
 
-    if len(edges_in_DAG) == 0 or len(edges_in_DAG) == 1:
+    if num_edges == 0 or num_edges == 1:
         return PE, PN
     else:
-        edge_to_change = random.choice(edges_in_DAG)
+        # Can be optimized to not use edges_in_DAG
+        rand_block = random.choices(PE, weights=[len(x) for x in PE])[0]
+        edge_to_change = random.choice(rand_block)
 
     # Find super node with edge[1] in it and remove it from PN
     old_PN_part = None

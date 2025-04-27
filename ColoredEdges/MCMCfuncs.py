@@ -76,8 +76,8 @@ def MCMC_iteration(samples, A, PE, PN, score, ML_data, move_weights):
             potential_score, *potential_ML_data = score_DAG_color_edit(samples, A, PE, [sum(x,[]) for x in PN], ML_data)
 
         case "change_edge":
-            A, PE, PN = add_remove_edge(A, PE, PN)
-            potential_score, *potential_ML_data = score_DAG_full(samples, A, PE, PN_flat = [sum(x,[]) for x in PN])
+            A, PE, PN, edge = add_remove_edge(A, PE, PN)
+            potential_score, *potential_ML_data = score_DAG_edge_edit(samples, A, PE, [sum(x,[]) for x in PN], ML_data, edge)
 
 
     # Metropolis Hastings to accept or reject new colored DAG
@@ -244,7 +244,7 @@ def add_remove_edge(A, PE, PN):
             A = tmp
             PE.append([edge])
     
-    return A, PE, PN
+    return A, PE, PN, edge
 
 
 
@@ -263,6 +263,51 @@ def score_DAG_full(data, A, PE, PN_flat):
         beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
         edges_ML_ungrouped[parents, node] = beta
         omegas_ML_ungrouped[node] = ss_res[0] / num_samples
+
+    # Block the lambdas as averages
+    edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
+    for block in PE:
+        tot = 0
+        for edge in block:
+            tot += edges_ML_ungrouped[edge]
+        block_lambda = tot/len(block)
+        for edge in block:
+            edges_ML_grouped[edge] = block_lambda
+
+    # Block the omegas as averages
+    omegas_ML_grouped = [None] * num_nodes
+    for part in PN_flat:
+        tot = 0
+        for node in part:
+            tot += omegas_ML_ungrouped[node]
+        block_omega = tot/len(part)
+        for node in part:
+            omegas_ML_grouped[node] = block_omega
+       
+    # Calculate BIC 
+    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
+
+    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (np.sum(A) + len(PN_flat) + len(PE)))
+
+    return bic, edges_ML_ungrouped, omegas_ML_ungrouped
+
+def score_DAG_edge_edit(data, A, PE, PN_flat, ML_data, changed_edge):
+    data = data.T
+    global data_S
+    global num_nodes
+    global num_samples
+
+    # Load old ML-eval
+    edges_ML_ungrouped, omegas_ML_ungrouped = ML_data
+    edges_ML_ungrouped = edges_ML_ungrouped.copy()
+    omegas_ML_ungrouped = omegas_ML_ungrouped.copy()
+
+    # Update ML-eval
+    _, node = changed_edge
+    parents = utils.get_parents(node, A)
+    beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
+    edges_ML_ungrouped[parents, node] = beta
+    omegas_ML_ungrouped[node] = ss_res[0] / num_samples
 
     # Block the lambdas as averages
     edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)

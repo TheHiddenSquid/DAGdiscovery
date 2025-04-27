@@ -260,8 +260,9 @@ def score_DAG_full(data, A, PE, PN_flat):
     omegas_ML_ungrouped = [None] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        edges_ML_ungrouped[parents, node] = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[0]
-        omegas_ML_ungrouped[node] = np.dot(x:=(data[node,:] - edges_ML_ungrouped[parents,node].T @ data[parents,:]), x) / num_samples
+        beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
+        edges_ML_ungrouped[parents, node] = beta
+        omegas_ML_ungrouped[node] = ss_res[0] / num_samples
 
     # Block the lambdas as averages
     edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)

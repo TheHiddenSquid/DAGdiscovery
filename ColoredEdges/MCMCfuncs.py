@@ -255,11 +255,13 @@ def score_DAG_full(data, A, PE, PN_flat):
     global num_nodes
     global num_samples
 
-    # Calculate ML-eval of the different lambdas
+    # Calculate ML-eval
     edges_ML_ungrouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
-    for i in range(num_nodes):
-        parents = utils.get_parents(i, A)
-        edges_ML_ungrouped[parents, i] = np.linalg.lstsq(data[parents,:].T, data[i,:].T, rcond=None)[0]
+    omegas_ML_ungrouped = [None] * num_nodes
+    for node in range(num_nodes):
+        parents = utils.get_parents(node, A)
+        edges_ML_ungrouped[parents, node] = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[0]
+        omegas_ML_ungrouped[node] = np.dot(x:=(data[node,:] - edges_ML_ungrouped[parents,node].T @ data[parents,:]), x) / num_samples
 
     # Block the lambdas as averages
     edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -270,12 +272,6 @@ def score_DAG_full(data, A, PE, PN_flat):
         block_lambda = tot/len(block)
         for edge in block:
             edges_ML_grouped[edge] = block_lambda
-
-    # Calculate ML-eval of the different color omegas
-    omegas_ML_ungrouped = [None] * num_nodes
-    for node in range(num_nodes):
-        parents = utils.get_parents(node, A)
-        omegas_ML_ungrouped[node] = np.dot(x:=(data[node,:] - edges_ML_ungrouped[parents,node].T @ data[parents,:]), x) / num_samples
 
     # Block the omegas as averages
     omegas_ML_grouped = [None] * num_nodes

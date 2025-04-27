@@ -274,9 +274,10 @@ def score_DAG(data, A, P):
             tot += np.dot(x:=(data[node,:] - edges_ML[parents,node].T @ data[parents,:]), x)
         omegas_ML[i] = tot / (num_samples * len(part))
 
-
         # Calculate BIC
         bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
+
+    print(omegas_ML)
     
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))

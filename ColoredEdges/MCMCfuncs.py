@@ -20,9 +20,22 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
     data_S = data @ data.T / num_samples
    
 
+    # Calculate number of iterations
+    if num_iters is None:
+        num_iters = 25 * 8**num_nodes
+        if num_nodes > 6:
+            print("Warning! Default number of iterations on more than 6 variables is too big. Set to 25*8^6")
+            num_iters = 25 * 8**6
+    elif not isinstance(num_iters, int):
+        raise TypeError("num_iters needs to be an int")
+    elif num_iters < 0:
+        raise ValueError("num_iters needs to be positive")
+    
+
+
     # Check that wieghts are legal
     move_weights = [0.3, 0.3, 0.4]
-    move_weights = [1, 1, 1]
+    #move_weights = [1, 1, 1]
 
 
     # Starting DAG

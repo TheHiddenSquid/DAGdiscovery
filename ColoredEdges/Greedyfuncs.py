@@ -7,15 +7,17 @@ import utils
 
 # Main MCMC functions
 
-def CausalGreedySearch(data, num_waves = 5):
+def CausalGreedySearch(sample, num_waves = 5):
 
-    # Setup constants
+    # Setup global constants
+    global data
     global num_samples
     global num_nodes
     global data_S
-    num_samples = data.shape[0]
-    num_nodes = data.shape[1]
-    data_S = data.T @ data / num_samples
+    data = sample.T
+    num_samples = data.shape[1]
+    num_nodes = data.shape[0]
+    data_S = data @ data.T / num_samples
    
 
     # Setup for iters
@@ -39,11 +41,11 @@ def CausalGreedySearch(data, num_waves = 5):
 
      
         # Setup for search
-        score, *ML_data = score_DAG_full(data, A, PE, PN_flat = [sum(x,[]) for x in PN])
+        score, *ML_data = score_DAG_full(A, PE, PN_flat = [sum(x,[]) for x in PN])
     
         done = False
         while not done:
-            A, PE, PN, score, ML_data, done = greedy_iteration(data, A, PE, PN, score, ML_data) 
+            A, PE, PN, score, ML_data, done = greedy_iteration(A, PE, PN, score, ML_data) 
 
             if score >= best_score:
                 best_A = A.copy()
@@ -56,7 +58,7 @@ def CausalGreedySearch(data, num_waves = 5):
 
     return best_A, best_PE, best_PN, best_score
       
-def greedy_iteration(samples, A, PE, PN, score, ML_data):
+def greedy_iteration(A, PE, PN, score, ML_data):
     old_PE = pickle.dumps(PE, -1)
     old_PN = pickle.dumps(PN, -1)
 
@@ -66,48 +68,31 @@ def greedy_iteration(samples, A, PE, PN, score, ML_data):
     best_score = score
     best_ML_data = ML_data
 
-    num_trys = 100
+    num_trys = 500
     for _ in range(num_trys):
         pot_A = A.copy()
         pot_PE = pickle.loads(old_PE)
         pot_PN = pickle.loads(old_PN)
         pot_score = score
         pot_ML_data = ML_data
-        pot_PE, pot_PN = change_edge_partiton(pot_PE, pot_PN)
-        pot_score, *pot_ML_data = score_DAG_color_edit(samples, pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
-
-        if pot_score > best_score:
-            best_A = pot_A
-            best_PE = pot_PE
-            best_PN = pot_PN
-            best_score = pot_score
-            best_ML_data = pot_ML_data
 
 
-    for _ in range(num_trys):
-        pot_A = A.copy()
-        pot_PE = pickle.loads(old_PE)
-        pot_PN = pickle.loads(old_PN)
-        pot_score = score
-        pot_ML_data = ML_data
-        pot_PN = change_node_partiton(pot_PN)
-        pot_score, *pot_ML_data = score_DAG_color_edit(samples, pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
+        moves = ["change_edge_color", "change_node_color",  "change_edge"]
+        move = random.choices(moves, weights=[0.3,0.3,0.4])[0]
+        
+        # Create new colored DAG based on move
+        match move:
+            case "change_edge_color":
+                pot_PE, pot_PN = change_edge_partiton(pot_PE, pot_PN)
+                pot_score, *pot_ML_data = score_DAG_color_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
 
-        if pot_score > best_score:
-            best_A = pot_A
-            best_PE = pot_PE
-            best_PN = pot_PN
-            best_score = pot_score
-            best_ML_data = pot_ML_data
+            case "change_node_color":
+                pot_PN = change_node_partiton(pot_PN)
+                pot_score, *pot_ML_data = score_DAG_color_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
 
-    for _ in range(num_trys):
-        pot_A = A.copy()
-        pot_PE = pickle.loads(old_PE)
-        pot_PN = pickle.loads(old_PN)
-        pot_score = score
-        pot_ML_data = ML_data
-        pot_A, pot_PE, pot_PN, edge = add_remove_edge(pot_A, pot_PE, pot_PN)
-        pot_score, *pot_ML_data = score_DAG_edge_edit(samples, pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data, edge)
+            case "change_edge":
+                pot_A, pot_PE, pot_PN, edge = add_remove_edge(pot_A, pot_PE, pot_PN)
+                pot_score, *pot_ML_data = score_DAG_edge_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data, edge)
 
         if pot_score > best_score:
             best_A = pot_A
@@ -283,8 +268,8 @@ def add_remove_edge(A, PE, PN):
 
 
 # For DAG heuristic
-def score_DAG_full(data, A, PE, PN_flat):
-    data = data.T
+def score_DAG_full(A, PE, PN_flat):
+    global data
     global data_S
     global num_nodes
     global num_samples
@@ -325,8 +310,8 @@ def score_DAG_full(data, A, PE, PN_flat):
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
-def score_DAG_edge_edit(data, A, PE, PN_flat, ML_data, changed_edge):
-    data = data.T
+def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
+    global data
     global data_S
     global num_nodes
     global num_samples
@@ -370,8 +355,8 @@ def score_DAG_edge_edit(data, A, PE, PN_flat, ML_data, changed_edge):
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
-def score_DAG_color_edit(data, A, PE, PN_flat, ML_data):
-    data = data.T
+def score_DAG_color_edit(A, PE, PN_flat, ML_data):
+    global data
     global data_S
     global num_nodes
     global num_samples

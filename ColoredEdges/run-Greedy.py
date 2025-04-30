@@ -13,7 +13,7 @@ from Greedyfuncs import CausalGreedySearch
 def main():
     random.seed(4)
     np.random.seed(4)
-    num_nodes = 7
+    num_nodes = 20
     num_edge_colors = 3
     num_node_colors = 5
     edge_prob = 0.4

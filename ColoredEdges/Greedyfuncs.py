@@ -91,8 +91,9 @@ def greedy_iteration(A, PE, PN, score, ML_data):
                 pot_score, *pot_ML_data = score_DAG_color_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
 
             case "change_edge":
-                pot_A, pot_PE, pot_PN, edge = add_remove_edge(pot_A, pot_PE, pot_PN)
-                pot_score, *pot_ML_data = score_DAG_edge_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data, edge)
+                pot_A, pot_PE, pot_PN, edge, did_change = add_remove_edge(pot_A, pot_PE, pot_PN)
+                if did_change:
+                    pot_score, *pot_ML_data = score_DAG_edge_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data, edge)
 
         if pot_score > best_score:
             best_A = pot_A
@@ -220,7 +221,7 @@ def change_node_partiton(PN):
 def add_remove_edge(A, PE, PN):
     num_nodes = A.shape[0]
     
-
+    did_change = True
     edge = (random.randrange(num_nodes), random.randrange(num_nodes))
 
     if A[edge] == 1:
@@ -262,8 +263,10 @@ def add_remove_edge(A, PE, PN):
         if utils.is_DAG(tmp):
             A = tmp
             PE.append([edge])
+        else:
+            did_change = False
     
-    return A, PE, PN, edge
+    return A, PE, PN, edge, did_change
 
 
 

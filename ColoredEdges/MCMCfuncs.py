@@ -93,8 +93,12 @@ def MCMC_iteration(A, PE, PN, score, ML_data, move_weights):
             potential_score, *potential_ML_data = score_DAG_color_edit(A, PE, [sum(x,[]) for x in PN], ML_data)
 
         case "change_edge":
-            A, PE, PN, edge = add_remove_edge(A, PE, PN)
-            potential_score, *potential_ML_data = score_DAG_edge_edit(A, PE, [sum(x,[]) for x in PN], ML_data, edge)
+            # ADD A DID-CHANGE CLAUSE
+            A, PE, PN, edge, did_change = add_remove_edge(A, PE, PN)
+            if did_change:
+                potential_score, *potential_ML_data = score_DAG_edge_edit(A, PE, [sum(x,[]) for x in PN], ML_data, edge)
+            else:
+                potential_score, potential_ML_data = score, ML_data
 
     # Metropolis Hastings to accept or reject new colored DAG
     if random.random() <= np.exp(potential_score - score):
@@ -217,7 +221,7 @@ def change_node_partiton(PN):
 def add_remove_edge(A, PE, PN):
     num_nodes = A.shape[0]
     
-
+    did_change = True
     edge = (random.randrange(num_nodes), random.randrange(num_nodes))
 
     if A[edge] == 1:
@@ -259,8 +263,10 @@ def add_remove_edge(A, PE, PN):
         if utils.is_DAG(tmp):
             A = tmp
             PE.append([edge])
+        else:
+            did_change = False
     
-    return A, PE, PN, edge
+    return A, PE, PN, edge, did_change
 
 
 

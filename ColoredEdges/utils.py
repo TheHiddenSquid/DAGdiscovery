@@ -1,6 +1,7 @@
 import copy
 import random
 
+import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from scipy import stats
@@ -337,7 +338,7 @@ def score_DAG(data, A, PE, PN_flat):
     # Calculate BIC 
     log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
 
-    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (np.sum(A) + len(PN_flat) + len(PE)))
+    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
 
     return bic
 
@@ -345,11 +346,9 @@ def score_DAG(data, A, PE, PN_flat):
 # Other functions
 
 def generate_node_color_map(PN):
-    if len(PN) > 12:
-        raise ValueError("Too many colors needed for color-map generation")
-    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink", "cyan", "gray"]
-
+    cm = plt.get_cmap('gist_rainbow')
     PN = sorted_partition(PN)
+    colors = [cm(1.2*i/len(PN)) for i in range(len(PN))]
     length = sum(len(x) for x in PN)
     color_map = [None] * length
     
@@ -361,9 +360,8 @@ def generate_node_color_map(PN):
     return color_map
 
 def generate_edge_color_map(G, PE):
-    if len(PE) > 12:
-        raise ValueError("Too many colors needed for color-map generation")
-    colors = ["red", "green", "blue", "yellow", "purple", "brown", "white", "black", "orange", "pink", "cyan", "gray"]
+    cm = plt.get_cmap('gist_rainbow')
+    colors = [cm(1.2*i/len(PE)) for i in range(len(PE))]
     num_edges = sum([len(x) for x in PE])
     color_map = [None] * num_edges
 

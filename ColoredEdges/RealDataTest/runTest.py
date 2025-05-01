@@ -14,12 +14,12 @@ from MCMCfuncs import CausalMCMC
 
 
 def main():
-    # Load data
-    with open("winequality-red.csv") as f:
+    # Load data "winequality-red.csv" or "sachs.data.txt"
+    with open("sachs.data.txt") as f:
         data = []
-        var_labels = f.readline().strip().split(",")
+        var_labels = f.readline().strip().split()   # or split(",")
         for line in f:
-            data.append(line.strip().split(","))
+            data.append(line.strip().split())
     
     samples = np.zeros((len(data), len(var_labels)))
     for i, row in enumerate(data):
@@ -44,10 +44,8 @@ def main():
     plt.title("GES")
     
 
-    A, PE, PN, bic = CausalGreedySearch(samples, num_waves=1)
-
-    print(len(PE))
-    print(np.sum(A))
+    A, PE, PN, bic = CausalGreedySearch(samples, num_waves=5)
+    print("GCCES:", bic)
 
     plt.axes(ax2)
     G = nx.DiGraph(A)

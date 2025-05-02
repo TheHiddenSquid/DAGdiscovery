@@ -140,7 +140,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for _ in repeat(None, num_iters):
-            A, P, score_info, fail = MCMC_iteration(A, P, score_info, move_weights)
+            A, P, bic, ML_data, fail = MCMC_iteration(A, P, bic, ML_data, move_weights)
             cashe[utils.hash_DAG(A, P)] += 1
             num_fails += fail
 

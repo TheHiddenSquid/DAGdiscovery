@@ -107,23 +107,23 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
 
     # Setup for iters
-    score_info = score_DAG(data, A, P)
+    bic, ML_data = score_DAG_full(data, A, P)
 
 
     if mode == "bic":
         best_A = A.copy()
         best_P = utils.sorted_partition(P)
-        best_bic = score_info[0]
+        best_bic = bic
         best_iter = 0
         num_fails = 0
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, P, score_info, fail = MCMC_iteration(A, P, score_info, move_weights)    
-            if score_info[0] > best_bic:
+            A, P, bic, ML_data, fail = MCMC_iteration(A, P, bic, ML_data, move_weights)    
+            if bic > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
-                best_bic = score_info[0]
+                best_bic = bic
                 best_iter = i
             num_fails += fail
 
@@ -159,7 +159,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         else:
             return CPDAG_A, best_P, num_visits
     
-def MCMC_iteration(A, P, score_info, move_weights):
+def MCMC_iteration(A, P, bic, ML_data, move_weights):
     # Check what moves are possible and pick one at random
 
     moves = ["change_color", "change_edge"]
@@ -169,19 +169,20 @@ def MCMC_iteration(A, P, score_info, move_weights):
     match move:
         case "change_color":
             P, node, old_color, new_color = change_partiton(P)
-            potential_score_info = score_DAG_color_edit(A, P, [score_info[1], score_info[2]])
+            potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data)
  
         case "change_edge":
             A, edge, did_change = change_edge(A)
             if did_change:
-                potential_score_info = score_DAG_edge_edit(A, P, [score_info[1], score_info[2]], edge)
+                potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
             else:
-                potential_score_info = score_info
+                potential_bic, potential_ML_data = bic, ML_data
 
 
     # Metropolis algorithm to accept or reject new colored DAG
-    if random.random() <= np.exp(potential_score_info[0] - score_info[0]):
-        new_score_info = potential_score_info
+    if random.random() <= np.exp(potential_bic - bic):
+        new_bic = potential_bic
+        new_ML_data = potential_ML_data
         failed = 0
     else:
         if move == "change_color":
@@ -190,11 +191,12 @@ def MCMC_iteration(A, P, score_info, move_weights):
         elif move == "change_edge":
             A[edge] = 1 - A[edge]
 
-        new_score_info = score_info
+        new_bic = bic
+        new_ML_data = ML_data
         failed = 1
 
     
-    return A, P, new_score_info, failed
+    return A, P, new_bic, new_ML_data, failed
 
 
 
@@ -244,7 +246,7 @@ def change_edge(A):
 
 
 # For DAG heuristic
-def score_DAG(data, A, P):
+def score_DAG_full(data, A, P):
     data = data.T
     
     global num_nodes
@@ -255,13 +257,10 @@ def score_DAG(data, A, P):
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
     # Calculate ML-eval
-    edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
     omegas_ML = [None] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
         beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
-        edges_ML[:, node] = np.zeros(num_nodes)
-        edges_ML[parents, node] = beta
         omegas_ML[node] = ss_res[0] / num_samples
 
     # Block the omegas as averages
@@ -280,13 +279,12 @@ def score_DAG(data, A, P):
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
     
-    return [bic, edges_ML, omegas_ML]
+    return bic, omegas_ML
 
 def score_DAG_color_edit(A, P, ML_data):
     
     # ML data is the same
-    edges_ML = ML_data[0]
-    omegas_ML = ML_data[1]
+    omegas_ML = ML_data
 
     # Calculate BIC
     bic_decomp = [0] * num_nodes
@@ -304,20 +302,17 @@ def score_DAG_color_edit(A, P, ML_data):
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
-    return [bic, edges_ML, omegas_ML]
+    return bic, omegas_ML
 
 def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
     # Get old ML-eval
-    edges_ML = ML_data[0].copy()
-    omegas_ML = ML_data[1].copy()
+    omegas_ML = ML_data.copy()
 
     # Update ML-eval
     _, node = changed_edge
     parents = utils.get_parents(node, A)
     beta, ss_res = np.linalg.lstsq(my_data[parents,:].T, my_data[node,:].T, rcond=None)[:2]
-    edges_ML[:, node] = np.zeros(num_nodes)
-    edges_ML[parents, node] = beta
     omegas_ML[node] = ss_res[0] / num_samples
 
     bic_decomp = [0] * num_nodes
@@ -336,7 +331,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
 
-    return [bic, edges_ML, omegas_ML]
+    return bic, omegas_ML
 
 
 

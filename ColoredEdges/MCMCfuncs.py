@@ -328,6 +328,7 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
     _, node = changed_edge
     parents = utils.get_parents(node, A)
     beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
+    edges_ML_ungrouped[:, node] = np.zeros(num_nodes)
     edges_ML_ungrouped[parents, node] = beta
     omegas_ML_ungrouped[node] = ss_res[0] / num_samples
 

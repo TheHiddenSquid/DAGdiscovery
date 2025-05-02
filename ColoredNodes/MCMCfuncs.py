@@ -56,10 +56,12 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     """
 
     # Setup global variables
+    global my_data
     global num_nodes
     global num_samples
     global BIC_constant
 
+    my_data = data.T
     num_nodes = data.shape[1]
     num_samples = data.shape[0]
     BIC_constant = np.log(num_samples)/(num_samples*2)
@@ -117,7 +119,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, P, score_info, fail = MCMC_iteration(data, A, P, score_info, move_weights)    
+            A, P, score_info, fail = MCMC_iteration(A, P, score_info, move_weights)    
             if score_info[0] > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
@@ -138,7 +140,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for _ in repeat(None, num_iters):
-            A, P, score_info, fail = MCMC_iteration(data, A, P, score_info, move_weights)
+            A, P, score_info, fail = MCMC_iteration(A, P, score_info, move_weights)
             cashe[utils.hash_DAG(A, P)] += 1
             num_fails += fail
 
@@ -157,7 +159,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         else:
             return CPDAG_A, best_P, num_visits
     
-def MCMC_iteration(data, A, P, score_info, move_weights):
+def MCMC_iteration(A, P, score_info, move_weights):
     # Check what moves are possible and pick one at random
 
     moves = ["change_color", "change_edge"]
@@ -167,14 +169,12 @@ def MCMC_iteration(data, A, P, score_info, move_weights):
     match move:
         case "change_color":
             P, node, old_color, new_color = change_partiton(P)
-
-            potential_score_info = score_DAG_color_edit(data, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
-
+            potential_score_info = score_DAG_color_edit(A, P, [score_info[1], score_info[2]])
+ 
         case "change_edge":
             A, edge, did_change = change_edge(A)
-
             if did_change:
-                potential_score_info = score_DAG_edge_edit(data, A, P, [score_info[1], score_info[2], score_info[3], edge])
+                potential_score_info = score_DAG_edge_edit(A, P, [score_info[1], score_info[2]], edge)
             else:
                 potential_score_info = score_info
 
@@ -254,126 +254,89 @@ def score_DAG(data, A, P):
     num_samples = data.shape[1]
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
-    # Calculate ML-eval of the different lambdas
+    # Calculate ML-eval
     edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
-    for i in range(num_nodes):
-        parents = utils.get_parents(i, A)
-        ans = np.linalg.lstsq(data[parents,:].T, data[i,:].T, rcond=None)[0]
-        edges_ML[parents, i] = ans
-
-    # Calculate ML-eval of the different color omegas
     omegas_ML = [None] * num_nodes
-    bic_decomp = [0] * num_nodes
+    for node in range(num_nodes):
+        parents = utils.get_parents(node, A)
+        beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
+        edges_ML[:, node] = np.zeros(num_nodes)
+        edges_ML[parents, node] = beta
+        omegas_ML[node] = ss_res[0] / num_samples
 
-    for i, part in enumerate(P):
-        if len(part) == 0:
+    # Block the omegas as averages
+    bic_decomp = [0] * num_nodes
+    for i, block in enumerate(P):
+        if len(block) == 0:
             continue
         tot = 0
-        for node in part:
-            parents = utils.get_parents(node, A)
-            tot += np.dot(x:=(data[node,:] - edges_ML[parents,node].T @ data[parents,:]), x)
-        omegas_ML[i] = tot / (num_samples * len(part))
+        for node in block:
+            tot += omegas_ML[node]
+        block_omega = tot / len(block)
 
         # Calculate BIC
-        bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
-
-    print(omegas_ML)
+        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
     
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
-
-
-    return [bic, edges_ML, omegas_ML, bic_decomp]
-
-def score_DAG_color_edit(data, A, P, last_change_data):
-    data = data.T
     
+    return [bic, edges_ML, omegas_ML]
+
+def score_DAG_color_edit(A, P, ML_data):
     
-    # Edge ML is the same
-    edges_ML = last_change_data[0]
-
-
-    # Node ML needs local update
-    omegas_ML = last_change_data[1].copy()
-    
-    node, old_color, new_color = last_change_data[3]
-    parents = utils.get_parents(node, A)
-    node_ml_contribution = np.dot(x:=(data[node,:] - edges_ML[parents,node].T @ data[parents,:]), x)
-
-    if len(P[old_color]) == 0:
-        omegas_ML[old_color] = None
-    else:
-        tot = omegas_ML[old_color] * num_samples * (len(P[old_color]) + 1)
-        tot -= node_ml_contribution
-        omegas_ML[old_color] = tot / (num_samples * len(P[old_color]))
-    
-    if len(P[new_color]) == 1:
-        tot = 0
-    else:
-        tot = omegas_ML[new_color] * num_samples * (len(P[new_color]) - 1)
-    tot += node_ml_contribution
-    omegas_ML[new_color] = tot / (num_samples * len(P[new_color]))
-
+    # ML data is the same
+    edges_ML = ML_data[0]
+    omegas_ML = ML_data[1]
 
     # Calculate BIC
-    bic_decomp = last_change_data[2].copy()
-
-    for i in [old_color, new_color]:
-        part = P[i]
-        if len(part) == 0:
-            bic_decomp[i] = 0
+    bic_decomp = [0] * num_nodes
+    for i, block in enumerate(P):
+        if len(block) == 0:
             continue
-        bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
+        tot = 0
+        for node in block:
+            tot += omegas_ML[node]
+        block_omega = tot / len(block)
+
+        # Calculate BIC
+        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
+    
+    bic = sum(bic_decomp) / 2
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
+
+    return [bic, edges_ML, omegas_ML]
+
+def score_DAG_edge_edit(A, P, ML_data, changed_edge):
+
+    # Get old ML-eval
+    edges_ML = ML_data[0].copy()
+    omegas_ML = ML_data[1].copy()
+
+    # Update ML-eval
+    _, node = changed_edge
+    parents = utils.get_parents(node, A)
+    beta, ss_res = np.linalg.lstsq(my_data[parents,:].T, my_data[node,:].T, rcond=None)[:2]
+    edges_ML[:, node] = np.zeros(num_nodes)
+    edges_ML[parents, node] = beta
+    omegas_ML[node] = ss_res[0] / num_samples
+
+    bic_decomp = [0] * num_nodes
+    for i, block in enumerate(P):
+        if len(block) == 0:
+            continue
+        tot = 0
+        for node in block:
+            tot += omegas_ML[node]
+        omega = tot / len(block)
+
+        # Calculate BIC
+        bic_decomp[i] = -len(block) * (np.log(omega) + 1)
     
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
 
-    return [bic, edges_ML, omegas_ML, bic_decomp]
-
-def score_DAG_edge_edit(data, A, P, last_change_data):
-    data = data.T
-    
-
-    # Calculate ML-eval of the different lambdas
-    edges_ML = last_change_data[0].copy()
-    
-    new_parent, new_child = last_change_data[3]
-    new_parents = utils.get_parents(new_child, A)
-    old_parents = new_parents.copy()
-    try:
-        old_parents.remove(new_parent)
-    except ValueError:
-        old_parents.append(new_parent)
-
-    old_ml = edges_ML[old_parents, new_child]
-    new_ml = np.linalg.lstsq(data[new_parents,:].T, data[new_child,:].T, rcond=None)[0]
-    edges_ML[new_parents, new_child] = new_ml
-
-
-    # Calculate ML-eval of the different color omegas
-    omegas_ML = last_change_data[1].copy()
-
-    for i, part in enumerate(P):
-        if new_child in part:
-            current_color = i
-            break
-
-    part = P[current_color]
-    tot = omegas_ML[current_color] * num_samples * len(part)
-    tot -= np.dot(x:=(data[new_child,:] - old_ml.T @ data[old_parents,:]), x)
-    tot += np.dot(x:=(data[new_child,:] - new_ml.T @ data[new_parents,:]), x)
-    omegas_ML[current_color] = tot / (num_samples * len(part))
-
-
-    # Calculate BIC
-    bic_decomp = last_change_data[2].copy()
-    bic_decomp[current_color] = -len(part) * (np.log(omegas_ML[current_color]) + 1)
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
-
-
-    return [bic, edges_ML, omegas_ML, bic_decomp]
+    return [bic, edges_ML, omegas_ML]
 
 
 

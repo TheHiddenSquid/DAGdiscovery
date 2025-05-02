@@ -8,10 +8,12 @@ import utils
 def CausalGreedySearch(samples, num_waves = 5):
     
     # Setup global variables
+    global my_data
     global num_nodes
     global num_samples
     global BIC_constant
 
+    my_data = samples.T
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
     BIC_constant = np.log(num_samples)/(num_samples*2)
@@ -20,7 +22,7 @@ def CausalGreedySearch(samples, num_waves = 5):
     # Setup iterations
     best_A = np.zeros((num_nodes, num_nodes))
     best_P = [{i} for i in range(num_nodes)]
-    best_bic = score_DAG(samples, best_A, best_P)[0]
+    best_bic, _ = score_DAG_full(samples, best_A, best_P)
 
     edge_probs = list(np.linspace(0,1,num_waves))
     num_colors = [int(x) for x in np.linspace(1,num_nodes,num_waves)]
@@ -33,26 +35,26 @@ def CausalGreedySearch(samples, num_waves = 5):
         for _ in range(num_nodes-len(P)):
             P.append(set())
 
-        score_info = score_DAG(samples, A, P)
+        bic, ML_data = score_DAG_full(samples, A, P)
         sorted_edges = get_sorted_edges(A)
         done = False
 
         while not done:
-            A, P, score_info, sorted_edges, done = Greedyiteration(samples, A, P, score_info, sorted_edges)
-            if score_info[0] > best_bic:
+            A, P, bic, ML_data, sorted_edges, done = Greedyiteration(A, P, bic, ML_data, sorted_edges)
+            if bic > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
-                best_bic = score_info[0]
+                best_bic = bic
 
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic
     
-def Greedyiteration(samples, A, P, score_info, sorted_edges):
+def Greedyiteration(A, P, bic, ML_data, sorted_edges):
     best_move = None
     best_A = None
     best_P = None
-    best_score_info = None
-    best_BIC = score_info[0]
+    best_bic = bic
+    best_ML_data = None
     edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
 
 
@@ -78,13 +80,13 @@ def Greedyiteration(samples, A, P, score_info, sorted_edges):
             P[new_color].add(node)
 
 
-            potential_score_info = score_DAG_color_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], [node, old_color, new_color]])
+            potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data)
 
-            if potential_score_info[0] > best_BIC:
+            if potential_bic > best_bic:
                 best_P = copy.deepcopy(P)
-                best_score_info = potential_score_info
+                best_bic = potential_bic
+                best_ML_data = potential_ML_data
                 best_move = "change_color"
-                best_BIC = potential_score_info[0]
 
 
             P[new_color].remove(node)
@@ -95,14 +97,14 @@ def Greedyiteration(samples, A, P, score_info, sorted_edges):
     for edge in edges_giving_DAGs:
         A[edge] = 1
 
-        potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
+        potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
-        if potential_score_info[0] > best_BIC:
+        if potential_bic > best_bic:
             best_A = A.copy()
-            best_score_info = potential_score_info
+            best_bic = potential_bic
+            best_ML_data = potential_ML_data
             best_move = "add_edge"
             best_saved_edge = edge
-            best_BIC = potential_score_info[0]
     
         A[edge] = 0
 
@@ -111,14 +113,14 @@ def Greedyiteration(samples, A, P, score_info, sorted_edges):
     for edge in edges_in_DAG:
         A[edge] = 0
         
-        potential_score_info = score_DAG_edge_edit(samples, A, P, [score_info[1], score_info[2], score_info[3], edge])
+        potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
-        if potential_score_info[0] > best_BIC:
+        if potential_bic > best_bic:
             best_A = A.copy()
-            best_score_info = potential_score_info
+            best_bic = potential_bic
+            best_ML_data = potential_ML_data
             best_move = "remove_edge"
             best_saved_edge = edge
-            best_BIC = potential_score_info[0]
         
         A[edge] = 1
 
@@ -126,11 +128,12 @@ def Greedyiteration(samples, A, P, score_info, sorted_edges):
 
     # Do the best possible jump
 
-    if best_score_info is None:
-        return A, P, score_info, sorted_edges, True
+    if best_ML_data is None:
+        return A, P, bic, ML_data, sorted_edges, True
     
     else:
-        new_score_info = best_score_info
+        new_bic = best_bic 
+        new_ML_data = best_ML_data
         
         if best_move == "change_color":
             new_A = A
@@ -146,7 +149,7 @@ def Greedyiteration(samples, A, P, score_info, sorted_edges):
             new_sorted_edges = update_sorted_edges_REMOVE(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
 
         
-    return new_A, new_P, new_score_info, new_sorted_edges, False
+    return new_A, new_P, new_bic, new_ML_data, new_sorted_edges, False
 
 
 
@@ -221,135 +224,92 @@ def update_sorted_edges_ADD(A, edges_in, addable_edges, not_addable_edges, added
 
 
 # For DAG heuristic
-def score_DAG(samples, A, P):
-    samples = samples.T
+def score_DAG_full(data, A, P):
+    data = data.T
     
     global num_nodes
     global num_samples
     global BIC_constant
-    num_nodes = samples.shape[0]
-    num_samples = samples.shape[1]
+    num_nodes = data.shape[0]
+    num_samples = data.shape[1]
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
-    # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
-    for i in range(num_nodes):
-        parents = utils.get_parents(i, A)
-        ans = np.linalg.lstsq(samples[parents,:].T, samples[i,:].T, rcond=None)[0]
-        edges_ML[parents, i] = ans
-
-    # Calculate ML-eval of the different color omegas
+    # Calculate ML-eval
     omegas_ML = [None] * num_nodes
-    bic_decomp = [0] * num_nodes
+    for node in range(num_nodes):
+        parents = utils.get_parents(node, A)
+        beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
+        omegas_ML[node] = ss_res[0] / num_samples
 
-    for i, part in enumerate(P):
-        if len(part) == 0:
+    # Block the omegas as averages
+    bic_decomp = [0] * num_nodes
+    for i, block in enumerate(P):
+        if len(block) == 0:
             continue
         tot = 0
-        for node in part:
-            parents = utils.get_parents(node, A)
-            tot += np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
-        omegas_ML[i] = tot / (num_samples * len(part))
-
+        for node in block:
+            tot += omegas_ML[node]
+        block_omega = tot / len(block)
 
         # Calculate BIC
-        bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
+        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
     
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
-
-
-    return [bic, edges_ML, omegas_ML, bic_decomp]
-
-def score_DAG_color_edit(samples, A, P, last_change_data):
-    samples = samples.T
     
-    # Edge ML is the same
-    edges_ML = last_change_data[0]
+    return bic, omegas_ML
 
-
-    # Node ML needs local update
-    omegas_ML = last_change_data[1].copy()
+def score_DAG_color_edit(A, P, ML_data):
     
-    node, old_color, new_color = last_change_data[3]
-    parents = utils.get_parents(node, A)
-    node_ml_contribution = np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
-
-    if len(P[old_color]) == 0:
-        omegas_ML[old_color] = None
-    else:
-        tot = omegas_ML[old_color] * num_samples * (len(P[old_color]) + 1)
-        tot -= node_ml_contribution
-        omegas_ML[old_color] = tot / (num_samples * len(P[old_color]))
-    
-    if len(P[new_color]) == 1:
-        tot = 0
-    else:
-        tot = omegas_ML[new_color] * num_samples * (len(P[new_color]) - 1)
-    tot += node_ml_contribution
-    omegas_ML[new_color] = tot / (num_samples * len(P[new_color]))
-
+    # ML data is the same
+    omegas_ML = ML_data
 
     # Calculate BIC
-    bic_decomp = last_change_data[2].copy()
-
-    for i in [old_color, new_color]:
-        part = P[i]
-        if len(part) == 0:
-            bic_decomp[i] = 0
+    bic_decomp = [0] * num_nodes
+    for i, block in enumerate(P):
+        if len(block) == 0:
             continue
-        bic_decomp[i] = -len(part) * (np.log(omegas_ML[i]) + 1)
+        tot = 0
+        for node in block:
+            tot += omegas_ML[node]
+        block_omega = tot / len(block)
+
+        # Calculate BIC
+        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
+    
+    bic = sum(bic_decomp) / 2
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
+
+    return bic, omegas_ML
+
+def score_DAG_edge_edit(A, P, ML_data, changed_edge):
+
+    # Get old ML-eval
+    omegas_ML = ML_data.copy()
+
+    # Update ML-eval
+    _, node = changed_edge
+    parents = utils.get_parents(node, A)
+    beta, ss_res = np.linalg.lstsq(my_data[parents,:].T, my_data[node,:].T, rcond=None)[:2]
+    omegas_ML[node] = ss_res[0] / num_samples
+
+    bic_decomp = [0] * num_nodes
+    for i, block in enumerate(P):
+        if len(block) == 0:
+            continue
+        tot = 0
+        for node in block:
+            tot += omegas_ML[node]
+        omega = tot / len(block)
+
+        # Calculate BIC
+        bic_decomp[i] = -len(block) * (np.log(omega) + 1)
     
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
 
-    return [bic, edges_ML, omegas_ML, bic_decomp]
-
-def score_DAG_edge_edit(samples, A, P, last_change_data):
-    samples = samples.T
-
-    # Calculate ML-eval of the different lambdas
-    edges_ML = last_change_data[0].copy()
-    
-    new_parent, new_child = last_change_data[3]
-    new_parents = utils.get_parents(new_child, A)
-    old_parents = new_parents.copy()
-    try:
-        old_parents.remove(new_parent)
-    except ValueError:
-        old_parents.append(new_parent)
-
-    old_ml = edges_ML[old_parents, new_child]
-    new_ml = np.linalg.lstsq(samples[new_parents,:].T, samples[new_child,:].T, rcond=None)[0]
-    edges_ML[new_parents, new_child] = new_ml
-
-
-    # Calculate ML-eval of the different color omegas
-    omegas_ML = last_change_data[1].copy()
-
-    for i, part in enumerate(P):
-        if new_child in part:
-            current_color = i
-            break
-
-    part = P[current_color]
-    tot = omegas_ML[current_color] * num_samples * len(part)
-    tot -= np.dot(x:=(samples[new_child,:] - old_ml.T @ samples[old_parents,:]), x)
-    tot += np.dot(x:=(samples[new_child,:] - new_ml.T @ samples[new_parents,:]), x)
-    omegas_ML[current_color] = tot / (num_samples * len(part))
-
-
-    # Calculate BIC
-    bic_decomp = last_change_data[2].copy()
-    bic_decomp[current_color] = -len(part) * (np.log(omegas_ML[current_color]) + 1)
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
-
-
-    return [bic, edges_ML, omegas_ML, bic_decomp]
-
-
+    return bic, omegas_ML
 
 def main():
     pass

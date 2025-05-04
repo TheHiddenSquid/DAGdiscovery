@@ -7,8 +7,8 @@ import networkx as nx
 import numpy as np
 
 sys.path.append("../")
+import MCMCfuncs
 import utils
-from MCMCfuncs import MCMC_iteration, score_DAG
 
 
 def main():
@@ -87,10 +87,12 @@ def main():
     global current_edge_array
     global current_partition
     global current_bic
+    global current_ML_data
 
     current_edge_array = initial_edge_array.copy()
     current_partition = initial_partition.copy()
-    current_bic = score_DAG(samples, current_edge_array, current_partition)
+    current_bic, current_ML_data = MCMCfuncs.score_DAG_full(samples, current_edge_array, current_partition)
+    MCMCfuncs.CausalMCMC(samples, 0)
 
     plt.axes(ax12)
     G = nx.DiGraph(current_edge_array)
@@ -101,7 +103,7 @@ def main():
     # Setop for BIC plots
     global bics
     global cumsum
-    start_bic = score_DAG(samples, current_edge_array, current_partition)[0]
+    start_bic = MCMCfuncs.score_DAG_full(samples, current_edge_array, current_partition)[0]
     bics = [start_bic]
     cumsum = [start_bic]
 
@@ -119,10 +121,10 @@ def main():
         ax12.clear()
         global current_edge_array
         global current_partition
+        global current_ML_data
         global current_bic
-        global samples
 
-        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
+        current_edge_array, current_partition, current_bic, current_ML_data, _ = MCMCfuncs.MCMC_iteration(current_edge_array, current_partition, current_bic, current_ML_data, [0.4,0.6])
         
         G = nx.DiGraph(current_edge_array)
         nx.draw_circular(G, node_color=utils.generate_color_map(current_partition), with_labels=True)
@@ -134,7 +136,7 @@ def main():
         global SHDs
         global CHDs
 
-        bics.append(current_bic[0])
+        bics.append(current_bic)
         plt.axes(ax21)
         ax21.clear()
         plt.plot(range(len(bics)),bics)
@@ -144,7 +146,7 @@ def main():
 
         plt.axes(ax22)
         ax22.clear()
-        cumsum.append(cumsum[-1]+current_bic[0])
+        cumsum.append(cumsum[-1]+current_bic)
 
         plt.plot(range(len(bics)),[cumsum[i]/(i+1) for i in range(len(bics))])
         plt.xlabel("iterations")

@@ -13,13 +13,15 @@ from MCMCfuncs import CausalMCMC
 
 
 def main():
-    no_nodes = 6
-    no_colors = 3
-    sparse = True
+    random.seed(1)
+    np.random.seed(1)
+    no_nodes = 4
+    no_colors = 2
+    density = 0.6
     sample_size = 1000
-    MCMC_iterations = None
+    MCMC_iterations = 100_000
 
-    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, sparse)
+    real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, density)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
 
@@ -53,7 +55,7 @@ def main():
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
-    print(f"it was visited {visits} of {50*4**no_nodes} iterations")
+    print(f"it was visited {visits} of {25*5**no_nodes} iterations")
 
 
     plt.axes(ax3)

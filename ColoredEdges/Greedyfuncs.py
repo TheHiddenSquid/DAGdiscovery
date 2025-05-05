@@ -68,29 +68,30 @@ def greedy_iteration(A, PE, PN, score, ML_data):
     best_score = score
     best_ML_data = ML_data
 
+
     num_trys = 500
-    for _ in range(num_trys):
+    moves = random.choices([0,1,2], k=num_trys, weights=[0.3,0.3,0.4])
+
+    for i in range(num_trys):
         pot_A = A.copy()
         pot_PE = pickle.loads(old_PE)
         pot_PN = pickle.loads(old_PN)
         pot_score = score
         pot_ML_data = ML_data
 
-
-        moves = ["change_edge_color", "change_node_color",  "change_edge"]
-        move = random.choices(moves, weights=[0.3,0.3,0.4])[0]
+        move = moves[i]
         
         # Create new colored DAG based on move
         match move:
-            case "change_edge_color":
+            case 0:
                 pot_PE, pot_PN = change_edge_partiton(pot_PE, pot_PN)
                 pot_score, *pot_ML_data = score_DAG_color_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
 
-            case "change_node_color":
+            case 1:
                 pot_PN = change_node_partiton(pot_PN)
                 pot_score, *pot_ML_data = score_DAG_color_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data)
 
-            case "change_edge":
+            case 2:
                 pot_A, pot_PE, pot_PN, edge, did_change = add_remove_edge(pot_A, pot_PE, pot_PN)
                 if did_change:
                     pot_score, *pot_ML_data = score_DAG_edge_edit(pot_A, pot_PE, [sum(x,[]) for x in pot_PN], pot_ML_data, edge)
@@ -282,9 +283,13 @@ def score_DAG_full(A, PE, PN_flat):
     omegas_ML_ungrouped = [None] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
+        a = data[parents,:]
+        b = data[node,:]
+        beta = np.linalg.solve(a @ a.T, a @ b)
+        x = b - a.T @ beta
+        ss_res = np.dot(x,x)
         edges_ML_ungrouped[parents, node] = beta
-        omegas_ML_ungrouped[node] = ss_res[0] / num_samples
+        omegas_ML_ungrouped[node] = ss_res / num_samples
 
     # Block the lambdas as averages
     edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -325,11 +330,16 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
     omegas_ML_ungrouped = omegas_ML_ungrouped.copy()
 
     # Update ML-eval
-    _, node = changed_edge
-    parents = utils.get_parents(node, A)
-    beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
-    edges_ML_ungrouped[parents, node] = beta
-    omegas_ML_ungrouped[node] = ss_res[0] / num_samples
+    _, active_node = changed_edge
+    parents = utils.get_parents(active_node, A)
+    a = data[parents,:]
+    b = data[active_node,:]
+    beta = np.linalg.solve(a @ a.T, a @ b)
+    x = b - a.T @ beta
+    ss_res = np.dot(x,x)
+    edges_ML_ungrouped[:, active_node] = np.zeros(num_nodes)
+    edges_ML_ungrouped[parents, active_node] = beta
+    omegas_ML_ungrouped[active_node] = ss_res / num_samples
 
     # Block the lambdas as averages
     edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -350,16 +360,15 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
         block_omega = tot/len(part)
         for node in part:
             omegas_ML_grouped[node] = block_omega
-       
+
     # Calculate BIC 
     log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
 
     bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
-
+ 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
 def score_DAG_color_edit(A, PE, PN_flat, ML_data):
-    global data
     global data_S
     global num_nodes
     global num_samples
@@ -393,6 +402,7 @@ def score_DAG_color_edit(A, PE, PN_flat, ML_data):
     bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
+
 
 
 def main():

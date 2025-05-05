@@ -14,7 +14,7 @@ def main():
     random.seed(4)
     np.random.seed(4)
     num_nodes = 4
-    num_edge_colors = 3
+    num_edge_colors = 4
     num_node_colors = 5
     edge_prob = 0.4
     sample_size = 1000

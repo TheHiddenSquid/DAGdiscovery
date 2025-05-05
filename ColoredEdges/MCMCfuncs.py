@@ -34,8 +34,9 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
 
 
     # Check that wieghts are legal
+    global moves
     move_weights = [0.3, 0.3, 0.4]
-    #move_weights = [1, 1, 1]
+    moves = random.choices([0, 1, 2], k=num_iters, weights=move_weights)
 
 
     # Starting DAG
@@ -55,7 +56,7 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
 
     # Run MCMC iters    
     for i in range(num_iters):
-        A, PE, PN, score, ML_data, fail = MCMC_iteration(A, PE, PN, score, ML_data, move_weights) 
+        A, PE, PN, score, ML_data, fail = MCMC_iteration(i, A, PE, PN, score, ML_data) 
 
         if score >= best_score:
             best_A = A.copy()
@@ -72,27 +73,25 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
     else:
         return best_A, best_PE, best_PN, best_score
       
-def MCMC_iteration(A, PE, PN, score, ML_data, move_weights):
+def MCMC_iteration(i, A, PE, PN, score, ML_data):
     # Check what moves are possible and pick one at random
     old_A = A.copy()
     old_PE = pickle.loads(pickle.dumps(PE, -1))
     old_PN = pickle.loads(pickle.dumps(PN, -1))
     
-
-    moves = ["change_edge_color", "change_node_color",  "change_edge"]
-    move = random.choices(moves, weights=move_weights)[0]
+    move = moves[i]
     
     # Create new colored DAG based on move
     match move:
-        case "change_edge_color":
+        case 0:
             PE, PN = change_edge_partiton(PE, PN)
             potential_score, *potential_ML_data = score_DAG_color_edit(A, PE, [sum(x,[]) for x in PN], ML_data)
 
-        case "change_node_color":
+        case 1:
             PN = change_node_partiton(PN)
             potential_score, *potential_ML_data = score_DAG_color_edit(A, PE, [sum(x,[]) for x in PN], ML_data)
 
-        case "change_edge":
+        case 2:
             # ADD A DID-CHANGE CLAUSE
             A, PE, PN, edge, did_change = add_remove_edge(A, PE, PN)
             if did_change:
@@ -282,9 +281,13 @@ def score_DAG_full(A, PE, PN_flat):
     omegas_ML_ungrouped = [None] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
+        a = data[parents,:]
+        b = data[node,:]
+        beta = np.linalg.solve(a @ a.T, a @ b)
+        x = b - a.T @ beta
+        ss_res = np.dot(x,x)
         edges_ML_ungrouped[parents, node] = beta
-        omegas_ML_ungrouped[node] = ss_res[0] / num_samples
+        omegas_ML_ungrouped[node] = ss_res / num_samples
 
     # Block the lambdas as averages
     edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -325,12 +328,16 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
     omegas_ML_ungrouped = omegas_ML_ungrouped.copy()
 
     # Update ML-eval
-    _, node = changed_edge
-    parents = utils.get_parents(node, A)
-    beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
-    edges_ML_ungrouped[:, node] = np.zeros(num_nodes)
-    edges_ML_ungrouped[parents, node] = beta
-    omegas_ML_ungrouped[node] = ss_res[0] / num_samples
+    _, active_node = changed_edge
+    parents = utils.get_parents(active_node, A)
+    a = data[parents,:]
+    b = data[active_node,:]
+    beta = np.linalg.solve(a @ a.T, a @ b)
+    x = b - a.T @ beta
+    ss_res = np.dot(x,x)
+    edges_ML_ungrouped[:, active_node] = np.zeros(num_nodes)
+    edges_ML_ungrouped[parents, active_node] = beta
+    omegas_ML_ungrouped[active_node] = ss_res / num_samples
 
     # Block the lambdas as averages
     edges_ML_grouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)

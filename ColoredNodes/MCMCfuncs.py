@@ -1,7 +1,7 @@
 import copy
 import random
+import time
 from collections import defaultdict
-from itertools import repeat
 
 import numpy as np
 import utils
@@ -84,7 +84,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         raise ValueError("Mode not supported")
     
     
-    # Check that wieghts are legal
+    # Check that wieghts are legal and prepare moves
     if move_weights is not None:
         if len(move_weights) != 2:
             raise ValueError("Lenght of weights must be 3")
@@ -93,8 +93,10 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
             raise ValueError("Invalid move probabilities")
     else:
         move_weights = [0.4, 0.6]
-
     
+    global moves
+    moves = random.choices([0, 1], k=num_iters, weights=move_weights)
+
     # Perform optional setup
     A = np.zeros((num_nodes, num_nodes))
     P = [{i} for i in range(num_nodes)]
@@ -119,7 +121,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, P, bic, ML_data, fail = MCMC_iteration(A, P, bic, ML_data, move_weights)    
+            A, P, bic, ML_data, fail = MCMC_iteration(i, A, P, bic, ML_data)    
             if bic > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
@@ -139,8 +141,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         num_fails = 0
 
         # Run MCMC iters    
-        for _ in repeat(None, num_iters):
-            A, P, bic, ML_data, fail = MCMC_iteration(A, P, bic, ML_data, move_weights)
+        for i in range(num_iters):
+            A, P, bic, ML_data, fail = MCMC_iteration(i, A, P, bic, ML_data)
             cashe[utils.hash_DAG(A, P)] += 1
             num_fails += fail
 
@@ -159,25 +161,22 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         else:
             return CPDAG_A, best_P, num_visits
     
-def MCMC_iteration(A, P, bic, ML_data, move_weights):
+def MCMC_iteration(i, A, P, bic, ML_data):
     # Check what moves are possible and pick one at random
 
-    moves = ["change_color", "change_edge"]
-    move = random.choices(moves, weights=move_weights)[0]
+    move = moves[i]
 
     # Create new colored DAG based on move
-    match move:
-        case "change_color":
-            P, node, old_color, new_color = change_partiton(P)
-            potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data)
- 
-        case "change_edge":
-            A, edge, did_change = change_edge(A)
-            if did_change:
-                potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
-            else:
-                potential_bic, potential_ML_data = bic, ML_data
-
+    if move:
+        A, edge, did_change = change_edge(A)
+        if did_change:
+            potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
+        else:
+            potential_bic, potential_ML_data = bic, ML_data
+    else:
+        P, node, old_color, new_color = change_partiton(P)
+        potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data)
+        
 
     # Metropolis algorithm to accept or reject new colored DAG
     if random.random() <= np.exp(potential_bic - bic):
@@ -185,12 +184,12 @@ def MCMC_iteration(A, P, bic, ML_data, move_weights):
         new_ML_data = potential_ML_data
         failed = 0
     else:
-        if move == "change_color":
+        if move:
+            A[edge] = 1 - A[edge]
+        else:
             P[new_color].remove(node)
             P[old_color].add(node)
-        elif move == "change_edge":
-            A[edge] = 1 - A[edge]
-
+            
         new_bic = bic
         new_ML_data = ML_data
         failed = 1

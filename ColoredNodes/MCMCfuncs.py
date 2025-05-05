@@ -1,6 +1,5 @@
 import copy
 import random
-import time
 from collections import defaultdict
 
 import numpy as np
@@ -109,7 +108,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
 
     # Setup for iters
-    bic, ML_data = score_DAG_full(data, A, P)
+    bic, ML_data = score_DAG_full(A, P)
 
 
     if mode == "bic":
@@ -162,7 +161,6 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
             return CPDAG_A, best_P, num_visits
     
 def MCMC_iteration(i, A, P, bic, ML_data):
-    # Check what moves are possible and pick one at random
 
     move = moves[i]
 
@@ -175,7 +173,7 @@ def MCMC_iteration(i, A, P, bic, ML_data):
             potential_bic, potential_ML_data = bic, ML_data
     else:
         P, node, old_color, new_color = change_partiton(P)
-        potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data)
+        potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data, old_color, new_color)
         
 
     # Metropolis algorithm to accept or reject new colored DAG
@@ -245,24 +243,21 @@ def change_edge(A):
 
 
 # For DAG heuristic
-def score_DAG_full(data, A, P):
-    data = data.T
-    
-    global num_nodes
-    global num_samples
-    global BIC_constant
-    num_nodes = data.shape[0]
-    num_samples = data.shape[1]
-    BIC_constant = np.log(num_samples)/(num_samples*2)
+def score_DAG_full(A, P):
 
-    # Calculate ML-eval
-    omegas_ML = [None] * num_nodes
+    # Calculate ML-eval via least sqares
+    omegas_ML = [0] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        beta, ss_res = np.linalg.lstsq(data[parents,:].T, data[node,:].T, rcond=None)[:2]
-        omegas_ML[node] = ss_res[0] / num_samples
+        a = my_data[parents,:]
+        b = my_data[node,:]
+        beta = np.linalg.solve(a @ a.T, a @ b)
+        x = b - a.T @ beta
+        ss_res = np.dot(x,x)
+        omegas_ML[node] = ss_res / num_samples
 
-    # Block the omegas as averages
+
+    # Calculate decomposed BIC
     bic_decomp = [0] * num_nodes
     for i, block in enumerate(P):
         if len(block) == 0:
@@ -272,65 +267,75 @@ def score_DAG_full(data, A, P):
             tot += omegas_ML[node]
         block_omega = tot / len(block)
 
-        # Calculate BIC
         bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
     
+    # Calculate full BIC
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
     
-    return bic, omegas_ML
+    return bic, [omegas_ML, bic_decomp]
 
-def score_DAG_color_edit(A, P, ML_data):
+def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
     
     # ML data is the same
-    omegas_ML = ML_data
+    omegas_ML, bic_decomp = ML_data
+    omegas_ML = omegas_ML.copy()
+    bic_decomp = bic_decomp.copy()
 
-    # Calculate BIC
-    bic_decomp = [0] * num_nodes
-    for i, block in enumerate(P):
+    # Update decomposed BIC
+    for block_index in [old_color, new_color]:
+        block = P[block_index]
         if len(block) == 0:
-            continue
+             bic_decomp[block_index] = 0
+             continue
         tot = 0
         for node in block:
             tot += omegas_ML[node]
         block_omega = tot / len(block)
 
-        # Calculate BIC
-        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
-    
+        bic_decomp[block_index] = -len(block) * (np.log(block_omega) + 1)
+
+    # Calculate full BIC
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
-    return bic, omegas_ML
+    return bic, [omegas_ML, bic_decomp]
 
 def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
     # Get old ML-eval
-    omegas_ML = ML_data.copy()
+    omegas_ML, bic_decomp = ML_data
+    omegas_ML = omegas_ML.copy()
+    bic_decomp = bic_decomp.copy()
 
-    # Update ML-eval
-    _, node = changed_edge
-    parents = utils.get_parents(node, A)
-    beta, ss_res = np.linalg.lstsq(my_data[parents,:].T, my_data[node,:].T, rcond=None)[:2]
-    omegas_ML[node] = ss_res[0] / num_samples
-
-    bic_decomp = [0] * num_nodes
-    for i, block in enumerate(P):
-        if len(block) == 0:
-            continue
-        tot = 0
-        for node in block:
-            tot += omegas_ML[node]
-        omega = tot / len(block)
-
-        # Calculate BIC
-        bic_decomp[i] = -len(block) * (np.log(omega) + 1)
     
+    # Update ML-eval
+    _, active_node = changed_edge
+    parents = utils.get_parents(active_node, A)
+    a = my_data[parents,:]
+    b = my_data[active_node,:]
+    beta = np.linalg.solve(a @ a.T, a @ b)
+    x = b - a.T @ beta
+    ss_res = np.dot(x,x)
+    omegas_ML[active_node] = ss_res / num_samples
+
+   
+    # Update decomposed BIC
+    for i, block in enumerate(P):
+        if active_node in block:
+            tot = 0
+            for node in block:
+                tot += omegas_ML[node]
+            omega = tot / len(block)
+
+            bic_decomp[i] = -len(block) * (np.log(omega) + 1)
+
+
+    # Calculate full BIC
     bic = sum(bic_decomp) / 2
     bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
 
-
-    return bic, omegas_ML
+    return bic, [omegas_ML, bic_decomp]
 
 
 

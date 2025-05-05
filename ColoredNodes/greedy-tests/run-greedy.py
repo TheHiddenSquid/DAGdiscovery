@@ -15,7 +15,7 @@ from Greedyfuncs import CausalGreedySearch
 def main():
     random.seed(1)
     np.random.seed(1)
-    no_nodes = 12
+    no_nodes = 16
     no_colors = 3
     edge_prob = 0.6
     sample_size = 1000

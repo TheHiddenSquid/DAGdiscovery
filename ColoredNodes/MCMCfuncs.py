@@ -1,4 +1,5 @@
 import copy
+import functools
 import random
 from collections import defaultdict
 
@@ -249,11 +250,7 @@ def score_DAG_full(A, P):
     omegas_ML = [0] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        a = my_data[parents,:]
-        b = my_data[node,:]
-        beta = np.linalg.solve(a @ a.T, a @ b)
-        x = b - a.T @ beta
-        ss_res = np.dot(x,x)
+        ss_res = calc_ss_res(node, tuple(parents))
         omegas_ML[node] = ss_res / num_samples
 
 
@@ -312,11 +309,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     # Update ML-eval
     _, active_node = changed_edge
     parents = utils.get_parents(active_node, A)
-    a = my_data[parents,:]
-    b = my_data[active_node,:]
-    beta = np.linalg.solve(a @ a.T, a @ b)
-    x = b - a.T @ beta
-    ss_res = np.dot(x,x)
+    ss_res = calc_ss_res(active_node, tuple(parents))
     omegas_ML[active_node] = ss_res / num_samples
 
    
@@ -338,6 +331,14 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     return bic, [omegas_ML, bic_decomp]
 
 
+@functools.cache
+def calc_ss_res(node, parents):
+    a = my_data[parents,:]
+    b = my_data[node,:]
+    beta = np.linalg.solve(a @ a.T, a @ b)
+    x = b - a.T @ beta
+    ss_res = np.dot(x,x)
+    return ss_res
 
 def main():
     pass

@@ -1,4 +1,5 @@
 import copy
+import functools
 import pickle
 import random
 
@@ -278,14 +279,10 @@ def score_DAG_full(A, PE, PN_flat):
 
     # Calculate ML-eval
     edges_ML_ungrouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
-    omegas_ML_ungrouped = [None] * num_nodes
+    omegas_ML_ungrouped = [0] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        a = data[parents,:]
-        b = data[node,:]
-        beta = np.linalg.solve(a @ a.T, a @ b)
-        x = b - a.T @ beta
-        ss_res = np.dot(x,x)
+        beta, ss_res = calc_lstsq(node, tuple(parents))
         edges_ML_ungrouped[parents, node] = beta
         omegas_ML_ungrouped[node] = ss_res / num_samples
 
@@ -330,11 +327,7 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
     # Update ML-eval
     _, active_node = changed_edge
     parents = utils.get_parents(active_node, A)
-    a = data[parents,:]
-    b = data[active_node,:]
-    beta = np.linalg.solve(a @ a.T, a @ b)
-    x = b - a.T @ beta
-    ss_res = np.dot(x,x)
+    beta, ss_res = calc_lstsq(active_node, tuple(parents))
     edges_ML_ungrouped[:, active_node] = np.zeros(num_nodes)
     edges_ML_ungrouped[parents, active_node] = beta
     omegas_ML_ungrouped[active_node] = ss_res / num_samples
@@ -401,6 +394,15 @@ def score_DAG_color_edit(A, PE, PN_flat, ML_data):
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
+
+@functools.cache
+def calc_lstsq(node, parents):
+    a = data[parents,:]
+    b = data[node,:]
+    beta = np.linalg.solve(a @ a.T, a @ b)
+    x = b - a.T @ beta
+    ss_res = np.dot(x,x)
+    return beta, ss_res
 
 def main():
     pass

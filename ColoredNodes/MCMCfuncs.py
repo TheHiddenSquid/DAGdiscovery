@@ -250,7 +250,7 @@ def score_DAG_full(A, P):
     omegas_ML = [0] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        ss_res = calc_ss_res(node, tuple(parents))
+        _, ss_res = calc_lstsq(node, tuple(parents))
         omegas_ML[node] = ss_res / num_samples
 
 
@@ -309,7 +309,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     # Update ML-eval
     _, active_node = changed_edge
     parents = utils.get_parents(active_node, A)
-    ss_res = calc_ss_res(active_node, tuple(parents))
+    _, ss_res = calc_lstsq(active_node, tuple(parents))
     omegas_ML[active_node] = ss_res / num_samples
 
    
@@ -332,13 +332,13 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
 
 @functools.cache
-def calc_ss_res(node, parents):
+def calc_lstsq(node, parents):
     a = my_data[parents,:]
     b = my_data[node,:]
     beta = np.linalg.solve(a @ a.T, a @ b)
     x = b - a.T @ beta
     ss_res = np.dot(x,x)
-    return ss_res
+    return beta, ss_res
 
 def main():
     pass

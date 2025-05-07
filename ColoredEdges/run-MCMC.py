@@ -18,7 +18,7 @@ def main():
     num_node_colors = 5
     edge_prob = 0.4
     sample_size = 1000
-    MCMC_iterations = 100_000   # 100_000 iters 3.45 sec on 4 nodes
+    MCMC_iterations = 1_00_000   # 100_000 iters 1.9 sec on 4 nodes
 
     real_edge_partition, real_node_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)

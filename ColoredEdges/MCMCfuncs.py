@@ -307,8 +307,9 @@ def score_DAG_full(A, PE, PN_flat):
             omegas_ML_grouped[node] = block_omega
        
     # Calculate BIC 
-    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
-
+    x = np.eye(num_nodes)-edges_ML_grouped
+    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
+    
     bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
@@ -353,7 +354,8 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
             omegas_ML_grouped[node] = block_omega
 
     # Calculate BIC 
-    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
+    x = np.eye(num_nodes)-edges_ML_grouped
+    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
 
     bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
  
@@ -388,7 +390,8 @@ def score_DAG_color_edit(A, PE, PN_flat, ML_data):
             omegas_ML_grouped[node] = block_omega
        
     # Calculate BIC 
-    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) + np.log(np.linalg.det(x:=(np.eye(num_nodes)-edges_ML_grouped))**2) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
+    x = np.eye(num_nodes)-edges_ML_grouped
+    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
 
     bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
 

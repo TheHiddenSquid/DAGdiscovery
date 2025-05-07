@@ -55,6 +55,9 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         If the value of some of the parameters is not appropriat.
     """
 
+    #Clear cache for new run of algorithm
+    calc_lstsq.cache_clear()
+
     # Setup global variables
     global my_data
     global num_nodes

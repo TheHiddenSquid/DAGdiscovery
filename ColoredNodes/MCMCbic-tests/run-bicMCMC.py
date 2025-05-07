@@ -15,11 +15,11 @@ from MCMCfuncs import CausalMCMC
 def main():
     random.seed(2)
     np.random.seed(2)
-    no_nodes = 5
+    no_nodes = 4
     no_colors = 3
-    edge_prob = 0.6
+    edge_prob = 0.9
     sample_size = 1000
-    MCMC_iterations = None
+    MCMC_iterations = 100_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
@@ -37,9 +37,11 @@ def main():
 
 
     # GES estimate of graph
+    t = time.perf_counter()
     samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
     res = ges.fit_bic(data=samples)
     GES_edge_array = res[0]
+    print("sample-gen+GES", time.perf_counter()-t)
 
     plt.axes(ax2)
     G = nx.DiGraph(GES_edge_array)
@@ -59,6 +61,7 @@ def main():
     print("GES: SHD to real DAG:", utils.calc_SHD(GES_edge_array, real_edge_array))
     print("The found DAG with correct coloring gives BIC:", utils.score_DAG(samples, edge_array, real_partition))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
+
 
 
     plt.axes(ax3)

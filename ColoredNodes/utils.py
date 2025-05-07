@@ -116,40 +116,40 @@ def get_sorted_edges(edge_array):
 
     return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
-def score_DAG(samples, edge_array, partition):
-    samples = samples.T
-    
-    num_nodes = samples.shape[0]
-    num_samples = samples.shape[1]
+def score_DAG(data, A, P):
+    my_data = data.T
+    num_nodes = data.shape[1]
+    num_samples = data.shape[0]
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
-    # Calculate ML-eval of the different lambdas
-    edges_ML = np.zeros((num_nodes,num_nodes), dtype=np.float64)
-    for i in range(num_nodes):
-        parents = get_parents(i, edge_array)
-        ans = np.linalg.lstsq(samples[parents,:].T, samples[i,:].T, rcond=None)[0]
-        edges_ML[parents, i] = ans
+    # Calculate ML-eval via least sqares
+    omegas_ML = [0] * num_nodes
+    for node in range(num_nodes):
+        parents = get_parents(node, A)
+        a = my_data[parents,:]
+        b = my_data[node,:]
+        beta = np.linalg.solve(a @ a.T, a @ b)
+        x = b - a.T @ beta
+        ss_res = np.dot(x,x)
+        omegas_ML[node] = ss_res / num_samples
 
-    # Calculate ML-eval of the different color omegas
-    omegas_ML = [None] * len(partition)
-    bic = 0
 
-    for i, part in enumerate(partition):
-        if len(part) == 0:
+    # Calculate decomposed BIC
+    bic_decomp = [0] * num_nodes
+    for i, block in enumerate(P):
+        if len(block) == 0:
             continue
         tot = 0
-        for node in part:
-            parents = get_parents(node, edge_array)
-            tot += np.dot(x:=(samples[node,:] - edges_ML[parents,node].T @ samples[parents,:]), x)
-        omegas_ML[i] = tot / (num_samples * len(part))
+        for node in block:
+            tot += omegas_ML[node]
+        block_omega = tot / len(block)
 
-
-        # Calculate BIC
-        bic  += -len(part) * (np.log(omegas_ML[i]) + 1)
+        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
     
-    bic = bic/2 - BIC_constant * (sum(1 for part in partition if len(part)>0) + np.sum(edge_array))
- 
-
+    # Calculate full BIC
+    bic = sum(bic_decomp) / 2
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
+    
     return bic
 
 

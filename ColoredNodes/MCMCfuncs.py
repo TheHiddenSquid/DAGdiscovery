@@ -94,7 +94,6 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     else:
         move_weights = [0.4, 0.6]
     
-    global moves
     moves = random.choices([0, 1], k=num_iters, weights=move_weights)
 
     # Perform optional setup
@@ -121,7 +120,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, P, bic, ML_data, fail = MCMC_iteration(i, A, P, bic, ML_data)    
+            move = moves[i]
+            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data)    
             if bic > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
@@ -142,7 +142,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for i in range(num_iters):
-            A, P, bic, ML_data, fail = MCMC_iteration(i, A, P, bic, ML_data)
+            move = moves[i]
+            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data)
             cashe[utils.hash_DAG(A, P)] += 1
             num_fails += fail
 
@@ -161,9 +162,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         else:
             return CPDAG_A, best_P, num_visits
     
-def MCMC_iteration(i, A, P, bic, ML_data):
-
-    move = moves[i]
+def MCMC_iteration(move, A, P, bic, ML_data):
 
     # Create new colored DAG based on move
     if move:

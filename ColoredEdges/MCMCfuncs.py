@@ -15,10 +15,12 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
     global num_samples
     global num_nodes
     global data_S
+    global BIC_constant
     data = sample.T
     num_samples = data.shape[1]
     num_nodes = data.shape[0]
     data_S = data @ data.T / num_samples
+    BIC_constant = np.log(num_samples)/(num_samples*2)
    
 
     # Calculate number of iterations
@@ -308,9 +310,8 @@ def score_DAG_full(A, PE, PN_flat):
        
     # Calculate BIC 
     x = np.eye(num_nodes)-edges_ML_grouped
-    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
-    
-    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
+    log_likelihood = -np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
+    bic = log_likelihood/2 - BIC_constant * (len(PN_flat) + len(PE))
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
@@ -355,9 +356,8 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
 
     # Calculate BIC 
     x = np.eye(num_nodes)-edges_ML_grouped
-    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
-
-    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
+    log_likelihood = -np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
+    bic = log_likelihood/2 - BIC_constant * (len(PN_flat) + len(PE))
  
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
@@ -389,11 +389,10 @@ def score_DAG_color_edit(A, PE, PN_flat, ML_data):
         for node in part:
             omegas_ML_grouped[node] = block_omega
        
-    # Calculate BIC 
+    # Calculate BIC
     x = np.eye(num_nodes)-edges_ML_grouped
-    log_likelihood = (num_samples/2) * (-np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S))
-
-    bic = (1/num_samples) * (log_likelihood - (np.log(num_samples)/2) * (len(PN_flat) + len(PE)))
+    log_likelihood = -np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
+    bic = log_likelihood/2 - BIC_constant * (len(PN_flat) + len(PE))
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 

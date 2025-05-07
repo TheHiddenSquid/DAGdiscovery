@@ -3,7 +3,7 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 import utils
-from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_edge_edit
+from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_full
 
 
 def main():
@@ -16,7 +16,7 @@ def main():
 
     # RUN MCM
     num_chains = 50
-    max_num_nodes = 7  # 9 works
+    max_num_nodes = 7  # 7 works
     
     required_iters_min = []
     required_iters_mean = []
@@ -32,25 +32,26 @@ def main():
 
             real_bic = utils.score_DAG(samples, real_edge_array, real_EP, real_NP)
 
-            current_edge_array = np.zeros((num_nodes, num_nodes), dtype=np.int64)
+            current_A = np.zeros((num_nodes, num_nodes), dtype=np.int64)
             current_PE = []
             current_PN = [[[i]] for i in range(num_nodes)]
 
             CausalMCMC(samples,0)
-            current_bic, *current_ML_data = score_DAG_edge_edit(samples, current_edge_array, current_PE, [sum(x,[]) for x in current_PN])
+            current_bic, *current_ML_data = score_DAG_full(current_A, current_PE, [sum(x,[]) for x in current_PN])
 
             best_bic = current_bic         
 
             iters = 1
             while np.exp(best_bic - real_bic) <= 0.95:
                 iters += 1
-                current_edge_array, current_PE, current_PN, current_bic, current_ML_data, _ = MCMC_iteration(samples, current_edge_array, current_PE, current_PN, current_bic, current_ML_data, [1,1,1])
+                move = random.choices([0, 1, 2], k=1, weights=[0.3, 0.3, 0.4])[0]
+                current_A, current_PE, current_PN, current_bic, current_ML_data, _ = MCMC_iteration(move, current_A, current_PE, current_PN, current_bic, current_ML_data)
 
                 if current_bic > best_bic:
                     best_bic = current_bic
                 
                 if iters % 100_000 == 0:
-                    print(np.exp(real_bic - best_bic))
+                    print(np.exp(best_bic - real_bic))
             
     
             best_iters.append(iters)
@@ -61,11 +62,10 @@ def main():
 
 
 
-    plt.semilogy(range(2,max_num_nodes), required_iters_min, color="C0", linestyle="dashed", linewidth=0.5)
-    plt.fill_between(range(2,max_num_nodes), required_iters_max, required_iters_mean, color="C0", alpha=.35)
-    plt.semilogy(range(2,max_num_nodes), required_iters_mean, color="C0", linewidth=1.8)
-    plt.fill_between(range(2,max_num_nodes), required_iters_mean, required_iters_min, color="C0", alpha=.35)
-    plt.semilogy(range(2,max_num_nodes), required_iters_max, color="C0", linestyle="dashed", linewidth=0.5)
+    plt.semilogy(range(2,max_num_nodes), required_iters_min, color="C0", linewidth=0.5)
+    plt.fill_between(range(2,max_num_nodes), required_iters_min, required_iters_max, color="C0", alpha=.2)
+    plt.semilogy(range(2,max_num_nodes), required_iters_mean, color="C0", linestyle="-", marker="s", linewidth=1.5)
+    plt.semilogy(range(2,max_num_nodes), required_iters_max, color="C0", linewidth=0.5)
 
     plt.xlabel("nodes")
     plt.ylabel("iterations")

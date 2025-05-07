@@ -88,11 +88,11 @@ def MCMC_iteration(i, A, PE, PN, score, ML_data):
     match move:
         case 0:
             PE, PN = change_edge_partiton(PE, PN)
-            potential_score, *potential_ML_data = score_DAG_color_edit(A, PE, [sum(x,[]) for x in PN], ML_data)
+            potential_score, *potential_ML_data = score_DAG_color_edit(PE, [sum(x,[]) for x in PN], ML_data)
 
         case 1:
             PN = change_node_partiton(PN)
-            potential_score, *potential_ML_data = score_DAG_color_edit(A, PE, [sum(x,[]) for x in PN], ML_data)
+            potential_score, *potential_ML_data = score_DAG_color_edit(PE, [sum(x,[]) for x in PN], ML_data)
 
         case 2:
             # ADD A DID-CHANGE CLAUSE
@@ -274,10 +274,6 @@ def add_remove_edge(A, PE, PN):
 
 # For DAG heuristic
 def score_DAG_full(A, PE, PN_flat):
-    global data
-    global data_S
-    global num_nodes
-    global num_samples
 
     # Calculate ML-eval
     edges_ML_ungrouped = np.zeros((num_nodes,num_nodes), dtype=np.float64)
@@ -316,10 +312,6 @@ def score_DAG_full(A, PE, PN_flat):
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
 def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
-    global data
-    global data_S
-    global num_nodes
-    global num_samples
 
     # Load old ML-eval
     edges_ML_ungrouped, omegas_ML_ungrouped = ML_data
@@ -361,10 +353,7 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
  
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
 
-def score_DAG_color_edit(A, PE, PN_flat, ML_data):
-    global data_S
-    global num_nodes
-    global num_samples
+def score_DAG_color_edit(PE, PN_flat, ML_data):
 
     edges_ML_ungrouped, omegas_ML_ungrouped = ML_data
    

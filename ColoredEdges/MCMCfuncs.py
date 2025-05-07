@@ -10,6 +10,9 @@ import utils
 
 def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
 
+    #Clear cache for new run of algorithm
+    calc_lstsq.cache_clear()
+
     # Setup constants
     global data
     global num_samples
@@ -37,7 +40,6 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
 
 
     # Check that wieghts are legal
-    global moves
     move_weights = [0.3, 0.3, 0.4]
     moves = random.choices([0, 1, 2], k=num_iters, weights=move_weights)
 
@@ -59,7 +61,8 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
 
     # Run MCMC iters    
     for i in range(num_iters):
-        A, PE, PN, score, ML_data, fail = MCMC_iteration(i, A, PE, PN, score, ML_data) 
+        move = moves[i]
+        A, PE, PN, score, ML_data, fail = MCMC_iteration(move, A, PE, PN, score, ML_data) 
 
         if score >= best_score:
             best_A = A.copy()
@@ -76,14 +79,14 @@ def CausalMCMC(sample, num_iters = None, move_weights = None, debug = False):
     else:
         return best_A, best_PE, best_PN, best_score
       
-def MCMC_iteration(i, A, PE, PN, score, ML_data):
+def MCMC_iteration(move, A, PE, PN, score, ML_data):
+
     # Check what moves are possible and pick one at random
     old_A = A.copy()
     old_PE = pickle.loads(pickle.dumps(PE, -1))
     old_PN = pickle.loads(pickle.dumps(PN, -1))
-    
-    move = moves[i]
-    
+
+
     # Create new colored DAG based on move
     match move:
         case 0:

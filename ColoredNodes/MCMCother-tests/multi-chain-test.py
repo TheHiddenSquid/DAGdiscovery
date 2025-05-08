@@ -9,7 +9,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs import MCMC_iteration, score_DAG
+from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_full
 
 
 def main():
@@ -72,27 +72,30 @@ def main():
     for j in range(no_chains):
         initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
-        initial_bic = score_DAG(samples, initial_edge_array, initial_partition)
+        CausalMCMC(samples, 0)
+        initial_bic, initial_ML_data = score_DAG_full(initial_edge_array, initial_partition)
 
         current_edge_array = initial_edge_array.copy()
         current_partition = initial_partition.copy()
         current_bic = initial_bic.copy()
+        current_ML_data = initial_ML_data.copy()
 
-        bics = [initial_bic[0]]
-        cumsum = [initial_bic[0]]
+        bics = [initial_bic]
+        cumsum = [initial_bic]
 
         for i in range(MCMC_iterations):
+            
+            move = random.choices([0, 1], k=1, weights=[0.4,0.6])[0]
+            current_edge_array, current_partition, current_bic, current_ML_data, _ = MCMC_iteration(move, current_edge_array, current_partition, current_bic, current_ML_data)
 
-            current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
-
-            if current_bic[0] > best_bic:
+            if current_bic > best_bic:
                 best_edge_array = current_edge_array.copy()
                 best_partition = copy.deepcopy(current_partition)
-                best_bic = current_bic[0]
+                best_bic = current_bic
                 best_iter = j*MCMC_iterations+i
             
-            bics.append(current_bic[0])
-            cumsum.append(cumsum[-1]+current_bic[0])
+            bics.append(current_bic)
+            cumsum.append(cumsum[-1]+current_bic)
 
         chain_bics.append(bics)
         chain_cumsum.append(cumsum)
@@ -102,7 +105,7 @@ def main():
     print("Found DAG with BIC:", best_bic)
     print("Found on iteration:", best_iter)
     print("SHD to real DAG was:", utils.calc_SHD(best_edge_array, real_edge_array))
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
+    print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 
 
 

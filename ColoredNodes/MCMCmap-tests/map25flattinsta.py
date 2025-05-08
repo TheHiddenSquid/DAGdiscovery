@@ -9,7 +9,7 @@ sys.path.append("../")
 from collections import defaultdict
 
 import utils
-from MCMCfuncs import MCMC_iteration, score_DAG
+from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_full
 from utils import get_sorted_edges
 
 
@@ -77,10 +77,10 @@ def main():
 
     
     
-    allbics = [2+score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition)[0] for x in dags]
+    allbics = [2+utils.score_DAG(samples, np.reshape(np.frombuffer(x, dtype="int"), (3,3)), real_partition) for x in dags]
 
     print(sorted(allbics))
-    print("True was", sorted(allbics).index(2+score_DAG(samples, real_A, real_partition)[0]), "best of 25")
+    print("True was", sorted(allbics).index(2+utils.score_DAG(samples, real_A, real_partition)), "best of 25")
 
 
 
@@ -88,7 +88,8 @@ def main():
     # setup for MCMC  
     current_edge_array = np.zeros((3,3))
     current_partition = real_partition.copy()
-    current_bic = score_DAG(samples, current_edge_array, current_partition)
+    CausalMCMC(samples, 0)
+    current_bic, current_ML_data = score_DAG_full(current_edge_array, current_partition)
 
     counts = [0]*25
     A = current_edge_array.astype("int")
@@ -98,13 +99,17 @@ def main():
     np.random.seed()
     num_iters = 1_00_000
     for _ in range(num_iters):
-        current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, [0.4,0.6])
+        move = random.choices([0, 1], k=1, weights=[0.4,0.6])[0]
+        current_edge_array, current_partition, current_bic, current_ML_data, _  = MCMC_iteration(move, current_edge_array, current_partition, current_bic, current_ML_data)
         A = current_edge_array.astype("int")
         counts[dags.index(A.tobytes())] += 1
 
     print(counts)
 
-    plt.bar(range(25), [x/sum(counts) for x in counts], label="MCMC")
+    bar_color = ["C0"]*25
+    bar_color[dags.index(real_A.tobytes())] = "gold"
+
+    plt.bar(range(25), [x/sum(counts) for x in counts], label="MCMC", color = bar_color)
     ebic = [np.exp(x) for x in allbics]
     plt.plot(range(25), [x/sum(ebic) for x in ebic], color = "C1", label="True value")
     plt.xlabel("DAG ID")

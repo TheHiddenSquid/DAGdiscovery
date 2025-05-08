@@ -16,7 +16,7 @@ def main():
 
     # RUN MCM
     num_chains = 50
-    max_num_nodes = 7  # 7 works
+    max_num_nodes = 7  # 7 takes 75 min
     
     required_iters_min = []
     required_iters_mean = []

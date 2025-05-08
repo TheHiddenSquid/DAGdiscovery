@@ -8,7 +8,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs import CausalMCMC, score_DAG
+from MCMCfuncs import CausalMCMC
 
 
 def main():
@@ -50,7 +50,7 @@ def main():
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("CHD to real DAG was:", utils.calc_CHD(partition, real_partition))
-    print("Correct DAG and correct coloring gives BIC:", score_DAG(samples, real_edge_array, real_partition)[0])
+    print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 
 
     plt.axes(ax2)

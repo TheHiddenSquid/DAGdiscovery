@@ -7,13 +7,13 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from MCMCfuncs import MCMC_iteration, score_DAG
+from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_full
 
 
 def main():
     random.seed(1)
     np.random.seed(1)
-    num_nodes = 6
+    num_nodes = 20
     num_colors = 3
     sparse = True
     sample_size = 1000
@@ -33,7 +33,7 @@ def main():
         real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
         samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
-        real_bic = score_DAG(samples, real_edge_array, real_partition)[0]
+        real_bic = utils.score_DAG(samples, real_edge_array, real_partition)
 
         start_partition, start_edge_array, _ = utils.generate_colored_DAG(num_nodes, num_nodes, 0.5)
         start_edge_array = np.array(start_edge_array != 0, dtype="int")
@@ -46,16 +46,18 @@ def main():
             current_partition = copy.deepcopy(start_partition)
             current_edge_array = start_edge_array.copy()
 
-            current_bic = score_DAG(samples, current_edge_array, current_partition)
+            CausalMCMC(samples, 0)
+            current_bic, current_ML_data = score_DAG_full(current_edge_array, current_partition)
 
-            best_bic = current_bic[0]
-            rolling_best_bic = [best_bic,best_bic]
+            best_bic = current_bic
+            rolling_best_bic = [real_bic-best_bic, real_bic-best_bic]
             
 
             for k in range(MCMC_iterations):
-                current_edge_array, current_partition, current_bic, _ = MCMC_iteration(samples, current_edge_array, current_partition, current_bic, move_weights=params)
+                move = random.choices([0, 1], k=1, weights=params)[0]
+                current_edge_array, current_partition, current_bic, current_ML_data, _ = MCMC_iteration(move, current_edge_array, current_partition, current_bic, current_ML_data)
 
-                best_bic = max(best_bic, current_bic[0])
+                best_bic = max(best_bic, current_bic)
                 rolling_best_bic.append(real_bic-best_bic)
 
             chain_rolling_best_bic[j].append(rolling_best_bic)
@@ -69,12 +71,12 @@ def main():
 
 
     for k in range(num_params):
-        plt.semilogx(range(MCMC_iterations+2), param_chains[k], label = f"P = {param_list[k]}")
+        plt.semilogx(range(MCMC_iterations+2), param_chains[k], label = rf"$\pi$ = {param_list[k]}")
 
     plt.xlabel("iterations")
     plt.ylabel("true bic - best bic")
     plt.legend()
-    plt.title("Convergence speed (6 nodes)")
+    plt.title(f"Convergence speed ({num_nodes} nodes)")
     plt.show()
 
     

@@ -7,20 +7,20 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from Greedyfuncs import CausalGreedySearch, Greedyiteration, get_sorted_edges, score_DAG
+from Greedyfuncs import CausalGreedySearch
 
 
 def main():
     random.seed(1)
     np.random.seed(1)
     no_colors = 3
-    sparse = True
+    edge_prob = 0.8
     sample_size = 1000
     
 
     # RUN MCM
     num_chains = 50
-    max_num_nodes = 8  # 11 takes time
+    max_num_nodes = 21  # 21 takes about 1 hour
     
 
     min_time = []
@@ -32,7 +32,7 @@ def main():
         best_times = []
         print(num_nodes)
         for _ in range(num_chains):
-            real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, no_colors, sparse)
+            real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(num_nodes, no_colors, edge_prob)
             samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
             t = time.perf_counter()

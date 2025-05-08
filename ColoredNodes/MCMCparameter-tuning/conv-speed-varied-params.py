@@ -13,7 +13,7 @@ from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_full
 def main():
     random.seed(1)
     np.random.seed(1)
-    num_nodes = 20
+    num_nodes = 6
     num_colors = 3
     sparse = True
     sample_size = 1000
@@ -21,7 +21,7 @@ def main():
 
     # RUN MCM
     MCMC_iterations = 100_000
-    num_chains = 10
+    num_chains = 50
     param_list = [0.001, 0.05, 0.2, 0.5, 0.8, 0.95, 0.999]
     num_params = len(param_list)
     

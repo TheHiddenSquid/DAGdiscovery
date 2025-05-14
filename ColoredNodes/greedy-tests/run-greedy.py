@@ -13,9 +13,9 @@ from Greedyfuncs import CausalGreedySearch
 
 
 def main():
-    random.seed(1)
-    np.random.seed(1)
-    no_nodes = 16
+    random.seed(2)
+    np.random.seed(2)
+    no_nodes = 6
     no_colors = 3
     edge_prob = 0.6
     sample_size = 1000
@@ -56,7 +56,7 @@ def main():
     print(f"Ran Hybrid for {num_waves} waves")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
-    print("Hybrid: SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
+    print("Greedy: SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
     print("GES: SHD to real DAG was:", utils.calc_SHD(GES_edge_array, real_edge_array))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 
@@ -64,7 +64,7 @@ def main():
     plt.axes(ax3)
     G = nx.DiGraph(edge_array)
     nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
-    plt.title("MCMC")
+    plt.title("Greedy")
 
 
     plt.show()

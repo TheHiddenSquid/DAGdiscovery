@@ -19,8 +19,8 @@ def main():
     
 
     # RUN MCM
-    num_chains = 50
-    max_num_nodes = 21  # 21 takes about 1 hour
+    num_chains = 50 # 50
+    max_num_nodes = 21  # 21 takes 30 min
     
 
     min_time = []
@@ -45,12 +45,10 @@ def main():
         max_time.append(np.max(best_times))
 
 
-    plt.semilogy(range(2,max_num_nodes), min_time, color="C0", linestyle="dashed", linewidth=0.5)
-    plt.semilogy(range(2,max_num_nodes), mean_time, color="C0", linewidth=1.8)
-    plt.semilogy(range(2,max_num_nodes), max_time, color="C0", linestyle="dashed", linewidth=0.5)
-    plt.fill_between(range(2,max_num_nodes), min_time, mean_time, color="C0", alpha=.35)
-    plt.fill_between(range(2,max_num_nodes), mean_time, max_time, color="C0", alpha=.35)
-
+    plt.semilogy(range(2,max_num_nodes), min_time, color="C0", linewidth=0.5)
+    plt.fill_between(range(2,max_num_nodes), min_time, max_time, color="C0", alpha=.2)
+    plt.semilogy(range(2,max_num_nodes), mean_time, color="C0",linestyle="-", marker="s", linewidth=1.5)
+    plt.semilogy(range(2,max_num_nodes), max_time, color="C0", linewidth=0.5)
 
 
     plt.xlabel("nodes")

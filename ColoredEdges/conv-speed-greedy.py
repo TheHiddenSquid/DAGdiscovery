@@ -40,16 +40,14 @@ def main():
         required_iters_max.append(np.max(best_times))
 
 
-
-    plt.semilogy(range(2,max_num_nodes), required_iters_min, color="C0", linestyle="dashed", linewidth=0.5)
-    plt.fill_between(range(2,max_num_nodes), required_iters_max, required_iters_mean, color="C0", alpha=.35)
-    plt.semilogy(range(2,max_num_nodes), required_iters_mean, color="C0", linewidth=1.8)
-    plt.fill_between(range(2,max_num_nodes), required_iters_mean, required_iters_min, color="C0", alpha=.35)
-    plt.semilogy(range(2,max_num_nodes), required_iters_max, color="C0", linestyle="dashed", linewidth=0.5)
+    plt.semilogy(range(2,max_num_nodes), required_iters_min, color="C0", linewidth=0.5)
+    plt.fill_between(range(2,max_num_nodes), required_iters_max, required_iters_min, color="C0", alpha=.2)
+    plt.semilogy(range(2,max_num_nodes), required_iters_mean, color="C0", linestyle="-", marker="s", linewidth=1.5)
+    plt.semilogy(range(2,max_num_nodes), required_iters_max, color="C0", linewidth=0.5)
 
     plt.xlabel("nodes")
     plt.ylabel("time (s)")
-    plt.title("Convergence speed")
+    plt.title("GPHES: Convergence speed")
     plt.show()
 
     

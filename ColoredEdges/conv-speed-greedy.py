@@ -47,7 +47,7 @@ def main():
 
     plt.xlabel("Nodes")
     plt.ylabel("Time (s)")
-    plt.title("GPHES: Convergence Speed")
+    plt.title("GCCES: Convergence Speed")
     plt.show()
 
     

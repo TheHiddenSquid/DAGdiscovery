@@ -335,6 +335,10 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
 @functools.cache
 def calc_lstsq(node, parents):
+    if len(parents) == 0:
+        b = my_data[node,:]
+        return [], np.dot(b,b)
+    
     a = my_data[parents,:]
     b = my_data[node,:]
     beta = np.linalg.solve(a @ a.T, a @ b)

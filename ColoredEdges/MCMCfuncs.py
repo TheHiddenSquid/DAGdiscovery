@@ -391,12 +391,17 @@ def score_DAG_color_edit(PE, PN_flat, ML_data):
 
 @functools.cache
 def calc_lstsq(node, parents):
+    if len(parents) == 0:
+        b = data[node,:]
+        return [], np.dot(b,b)
+    
     a = data[parents,:]
     b = data[node,:]
     beta = np.linalg.solve(a @ a.T, a @ b)
     x = b - a.T @ beta
     ss_res = np.dot(x,x)
     return beta, ss_res
+
 
 def main():
     pass

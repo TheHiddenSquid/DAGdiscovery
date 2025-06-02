@@ -51,9 +51,9 @@ def main():
     plt.semilogy(range(2,max_num_nodes), max_time, color="C0", linewidth=0.5)
 
 
-    plt.xlabel("nodes")
-    plt.ylabel("time (s)")
-    plt.title("Greedy search: Convergence speed")
+    plt.xlabel("Nodes")
+    plt.ylabel("Time (s)")
+    plt.title("GPHES: Convergence Speed")
     plt.show()
 
     

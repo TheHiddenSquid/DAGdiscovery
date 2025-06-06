@@ -67,9 +67,9 @@ def main():
     plt.semilogy(range(2,max_num_nodes), required_iters_mean, color="C0", linestyle="-", marker="s", linewidth=1.5)
     plt.semilogy(range(2,max_num_nodes), required_iters_max, color="C0", linewidth=0.5)
 
-    plt.xlabel("nodes")
-    plt.ylabel("iterations")
-    plt.title("Convergence speed")
+    plt.xlabel("Nodes")
+    plt.ylabel("Iterations")
+    plt.title("CC-MCMC: Convergence Speed")
     plt.show()
 
     

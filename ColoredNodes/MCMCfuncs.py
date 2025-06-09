@@ -278,7 +278,6 @@ def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
     
     # ML data is the same
     omegas_ML, bic_decomp = ML_data
-    omegas_ML = omegas_ML.copy()
     bic_decomp = bic_decomp.copy()
 
     # Update decomposed BIC
@@ -308,7 +307,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     omegas_ML = omegas_ML.copy()
     bic_decomp = bic_decomp.copy()
 
-    
+
     # Update ML-eval
     _, active_node = changed_edge
     parents = utils.get_parents(active_node, A)

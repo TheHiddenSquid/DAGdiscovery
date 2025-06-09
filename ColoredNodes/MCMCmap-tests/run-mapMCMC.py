@@ -55,7 +55,7 @@ def main():
     print(f"Ran MCMC for {MCMC_iterations} iterations")
     print(f"It took {time.perf_counter()-t} seconds")
     print("SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
-    print(f"it was visited {visits} of {25*5**no_nodes} iterations")
+    print(f"it was visited {visits} of {MCMC_iterations} iterations")
 
 
     plt.axes(ax3)

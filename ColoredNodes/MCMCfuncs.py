@@ -58,7 +58,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     #Clear cache for new run of algorithm
     calc_lstsq.cache_clear()
 
-    # Setup global variables
+    # Setup global constants
     global my_data
     global num_nodes
     global num_samples
@@ -99,7 +99,11 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     
     moves = random.choices([0, 1], k=num_iters, weights=move_weights)
 
-    # Perform optional setup
+
+    # Setup initial guesses
+    global num_edges
+    global num_colors
+
     A = np.zeros((num_nodes, num_nodes))
     P = [{i} for i in range(num_nodes)]
 
@@ -108,6 +112,9 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
     if A0 is not None:
         A = A0
+    
+    num_edges = np.count_nonzero(A)
+    num_colors = sum(1 for part in P if len(part)>0)
 
 
     # Setup for iters
@@ -166,6 +173,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
             return CPDAG_A, best_P, num_visits
     
 def MCMC_iteration(move, A, P, bic, ML_data):
+    global num_colors
+    global num_edges
 
     # Create new colored DAG based on move
     if move:
@@ -187,9 +196,15 @@ def MCMC_iteration(move, A, P, bic, ML_data):
     else:
         if move:
             A[edge] = 1 - A[edge]
+            num_edges += 2*A[edge] - 1
         else:
             P[new_color].remove(node)
             P[old_color].add(node)
+
+            if len(P[new_color]) == 0:
+                num_colors -= 1
+            if len(P[old_color]) == 1:
+                num_colors += 1
             
         new_bic = bic
         new_ML_data = ML_data
@@ -202,6 +217,8 @@ def MCMC_iteration(move, A, P, bic, ML_data):
 
 # For moves
 def change_partiton(P):
+    global num_colors
+    
     node_to_change = random.randrange(num_nodes)
     old_color = None
     other_colors = []
@@ -216,14 +233,21 @@ def change_partiton(P):
 
     if len(P[old_color]) != 1:
         other_colors.append(empty_color)
+    else:
+        num_colors -= 1
 
     P[old_color].remove(node_to_change)
     new_color = random.choice(other_colors)
     P[new_color].add(node_to_change)
 
+    if len(P[new_color]) == 1:
+        num_colors += 1
+
     return P, node_to_change, old_color, new_color
 
 def change_edge(A):
+    global num_edges
+
     did_change = False
     n1 = random.randrange(num_nodes)
     n2 = random.randrange(num_nodes)
@@ -234,10 +258,12 @@ def change_edge(A):
     if A[edge] == 1:
         A[edge] = 0
         did_change = True
+        num_edges -= 1
     else:
         A[edge] = 1
         if utils.is_DAG(A):
             did_change = True
+            num_edges += 1
         else:
             A[edge] = 0
     
@@ -269,8 +295,7 @@ def score_DAG_full(A, P):
         bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
     
     # Calculate full BIC
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
+    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)
     
     return bic, [omegas_ML, bic_decomp]
 
@@ -294,10 +319,8 @@ def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
         bic_decomp[block_index] = -len(block) * (np.log(block_omega) + 1)
 
     # Calculate full BIC
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
+    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)
     
-
     return bic, [omegas_ML, bic_decomp]
 
 def score_DAG_edge_edit(A, P, ML_data, changed_edge):
@@ -327,8 +350,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
 
     # Calculate full BIC
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
+    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)
 
     return bic, [omegas_ML, bic_decomp]
 

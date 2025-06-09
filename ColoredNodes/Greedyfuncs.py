@@ -252,7 +252,7 @@ def score_DAG_full(A, P):
     
     # Calculate full BIC
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
     
     return bic, [omegas_ML, bic_decomp]
 
@@ -278,7 +278,7 @@ def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
 
     # Calculate full BIC
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
 
     return bic, [omegas_ML, bic_decomp]
 
@@ -314,7 +314,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
     # Calculate full BIC
     bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.sum(A))
+    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
 
     return bic, [omegas_ML, bic_decomp]
 

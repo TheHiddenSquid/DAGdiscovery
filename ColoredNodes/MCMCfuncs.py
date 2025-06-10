@@ -293,7 +293,7 @@ def score_DAG_full(A, P):
             tot += omegas_ML[node]
         block_omega = tot / len(block)
 
-        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
+        bic_decomp[i] = -len(block) * (math.log(block_omega) + 1)
     
     # Calculate full BIC
     bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)

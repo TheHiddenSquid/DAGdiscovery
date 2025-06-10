@@ -1,5 +1,6 @@
 import copy
 import functools
+import math
 import random
 from collections import defaultdict
 
@@ -185,7 +186,7 @@ def MCMC_iteration(move, A, P, bic, ML_data):
             potential_bic, potential_ML_data = bic, ML_data
     else:
         P, node, old_color, new_color = change_partiton(P)
-        potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data, old_color, new_color)
+        potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, old_color, new_color)
         
 
     # Metropolis algorithm to accept or reject new colored DAG
@@ -218,7 +219,7 @@ def MCMC_iteration(move, A, P, bic, ML_data):
 # For moves
 def change_partiton(P):
     global num_colors
-    
+
     node_to_change = random.randrange(num_nodes)
     old_color = None
     other_colors = []
@@ -299,7 +300,7 @@ def score_DAG_full(A, P):
     
     return bic, [omegas_ML, bic_decomp]
 
-def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
+def score_DAG_color_edit(P, ML_data, old_color, new_color):
     
     # ML data is the same
     omegas_ML, bic_decomp = ML_data
@@ -316,7 +317,7 @@ def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
             tot += omegas_ML[node]
         block_omega = tot / len(block)
 
-        bic_decomp[block_index] = -len(block) * (np.log(block_omega) + 1)
+        bic_decomp[block_index] = -len(block) * (math.log(block_omega) + 1)
 
     # Calculate full BIC
     bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)
@@ -346,7 +347,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
                 tot += omegas_ML[node]
             omega = tot / len(block)
 
-            bic_decomp[i] = -len(block) * (np.log(omega) + 1)
+            bic_decomp[i] = -len(block) * (math.log(omega) + 1)
 
 
     # Calculate full BIC

@@ -1,5 +1,6 @@
 import copy
 import functools
+import math
 import pickle
 import random
 
@@ -309,7 +310,7 @@ def score_DAG_full(A, PE, PN_flat):
        
     # Calculate BIC 
     x = np.eye(num_nodes)-edges_ML_grouped
-    log_likelihood = -np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
+    log_likelihood = -math.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
     bic = log_likelihood/2 - BIC_constant * (len(PN_flat) + len(PE))
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
@@ -351,7 +352,7 @@ def score_DAG_edge_edit(A, PE, PN_flat, ML_data, changed_edge):
 
     # Calculate BIC 
     x = np.eye(num_nodes)-edges_ML_grouped
-    log_likelihood = -np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
+    log_likelihood = -math.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
     bic = log_likelihood/2 - BIC_constant * (len(PN_flat) + len(PE))
  
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped
@@ -383,7 +384,7 @@ def score_DAG_color_edit(PE, PN_flat, ML_data):
        
     # Calculate BIC
     x = np.eye(num_nodes)-edges_ML_grouped
-    log_likelihood = -np.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
+    log_likelihood = -math.log(np.prod(omegas_ML_grouped)) - np.trace(x @ np.diag([1/w for w in omegas_ML_grouped]) @ x.T @ data_S)
     bic = log_likelihood/2 - BIC_constant * (len(PN_flat) + len(PE))
 
     return bic, edges_ML_ungrouped, omegas_ML_ungrouped

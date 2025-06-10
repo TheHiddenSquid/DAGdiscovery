@@ -1,4 +1,5 @@
 import copy
+import math
 
 import numpy as np
 import utils
@@ -248,7 +249,7 @@ def score_DAG_full(A, P):
             tot += omegas_ML[node]
         block_omega = tot / len(block)
 
-        bic_decomp[i] = -len(block) * (np.log(block_omega) + 1)
+        bic_decomp[i] = -len(block) * (math.log(block_omega) + 1)
     
     # Calculate full BIC
     bic = sum(bic_decomp) / 2
@@ -274,7 +275,7 @@ def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
             tot += omegas_ML[node]
         block_omega = tot / len(block)
 
-        bic_decomp[block_index] = -len(block) * (np.log(block_omega) + 1)
+        bic_decomp[block_index] = -len(block) * (math.log(block_omega) + 1)
 
     # Calculate full BIC
     bic = sum(bic_decomp) / 2
@@ -309,7 +310,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
                 tot += omegas_ML[node]
             omega = tot / len(block)
 
-            bic_decomp[i] = -len(block) * (np.log(omega) + 1)
+            bic_decomp[i] = -len(block) * (math.log(omega) + 1)
 
 
     # Calculate full BIC

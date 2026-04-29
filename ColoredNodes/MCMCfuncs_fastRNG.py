@@ -8,6 +8,8 @@ from collections import defaultdict
 import numpy as np
 import utils
 
+# TEST VERSION THAT GENERATES ALL RANDOM MOVES IN THE BEGINNING. NOT YET FULLY IMPLEMENTED
+
 # Main MCMC functions
 
 def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = None, P0 = None, debug = False):
@@ -86,8 +88,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     global random_nodes
     t = time.perf_counter()
     random_nodes = list(np.random.randint(0, num_nodes, num_iters * 2))
-    print(time.perf_counter()-t)
-    quit()
+
 
     # Check that mode is legal
     if mode not in ["bic", "map"]:

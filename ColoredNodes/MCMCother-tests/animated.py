@@ -12,12 +12,21 @@ import utils
 
 
 def main():
-    no_nodes = 6
+    np.random.seed(5)
+    random.seed(5)
+    no_nodes = 4
     no_colors = 4
     edge_prob = 0.6
-    sample_size = 1000
+    sample_size = 100
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
+    
+    real_partition = [[0],[1],[2],[3]]
+    real_lambda_matrix = np.array([[0,1,1,0],
+                                   [0,0,0,1],
+                                   [0,0,0,1],
+                                   [0,0,0,0]])
+    real_omega_matrix = np.array([1,3,2,1])
     real_edge_array = np.array(real_lambda_matrix != 0, dtype="int")
 
     global samples
@@ -50,7 +59,7 @@ def main():
     global current_ML_data
 
     current_edge_array = initial_edge_array.copy()
-    current_partition = initial_partition.copy()
+    current_partition = [[0],[1],[2],[3]]
     MCMCfuncs.CausalMCMC(samples, 0)
     current_bic, current_ML_data = MCMCfuncs.score_DAG_full(current_edge_array, current_partition)
 
@@ -85,6 +94,7 @@ def main():
         global current_bic
 
         move = random.choices([0, 1], k=1, weights=[0.4,0.6])[0]
+        move = 1
         current_edge_array, current_partition, current_bic, current_ML_data, _ = MCMCfuncs.MCMC_iteration(move, current_edge_array, current_partition, current_bic, current_ML_data)
         
         G = nx.DiGraph(current_edge_array)

@@ -2,6 +2,7 @@ import random
 
 import networkx as nx
 import numpy as np
+from numba import njit
 from scipy import stats
 from scipy.optimize import linear_sum_assignment
 
@@ -82,6 +83,38 @@ def is_DAG(A):
     if np.argmax(P) != 0:
         return False
     return not P[0,0]
+
+@njit(cache=True)
+def is_reachable(A, i, j):
+    """
+    Returns true if node i reachable from node j given adjacency matrix A
+    """
+    n = A.shape[0]
+    if i == j:
+        return True
+    
+    visited = np.zeros(n, dtype=np.bool_)
+    visited[j] = True
+    
+    queue = np.empty(n, dtype=np.int32)
+    queue[0] = j
+    head = 0
+    tail = 1
+    
+    while head < tail:
+        curr = queue[head]
+        head += 1
+        
+        for neighbor in range(n):
+            if A[curr, neighbor]:
+                if neighbor == i:
+                    return True
+                if not visited[neighbor]:
+                    visited[neighbor] = True
+                    queue[tail] = neighbor
+                    tail += 1
+                    
+    return False
 
 def get_parents(node, A):
     parents = []

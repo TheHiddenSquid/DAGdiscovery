@@ -2,6 +2,7 @@ import copy
 import functools
 import math
 import random
+import time
 from collections import defaultdict
 
 import numpy as np
@@ -100,6 +101,9 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     
     moves = random.choices([0, 1], k=num_iters, weights=move_weights)
 
+    # Setuo fast access random nodes
+    global random_nodes
+    random_nodes = list(np.random.randint(0, num_nodes, num_iters * 2))
 
     # Setup initial guesses
     global num_edges
@@ -183,12 +187,12 @@ def MCMC_iteration(move, A, P, bic, ML_data):
         if did_change:
             potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
         else:
-            potential_bic, potential_ML_data = bic, ML_data
+            return A, P, bic, ML_data, 0
     else:
         P, node, old_color, new_color = change_partiton(P)
         potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, old_color, new_color)
         
-
+   
     # Metropolis algorithm to accept or reject new colored DAG
     if random.random() <= np.exp(potential_bic - bic):
         new_bic = potential_bic
@@ -211,7 +215,6 @@ def MCMC_iteration(move, A, P, bic, ML_data):
         new_ML_data = ML_data
         failed = 1
 
-    
     return A, P, new_bic, new_ML_data, failed
 
 
@@ -220,7 +223,8 @@ def MCMC_iteration(move, A, P, bic, ML_data):
 def change_partiton(P):
     global num_colors
 
-    node_to_change = random.randrange(num_nodes)
+    #node_to_change = random.randrange(num_nodes)
+    node_to_change = random_nodes.pop()
     old_color = None
     other_colors = []
 
@@ -250,23 +254,26 @@ def change_edge(A):
     global num_edges
 
     did_change = False
-    n1 = random.randrange(num_nodes)
-    n2 = random.randrange(num_nodes)
+    # n1 = random.randrange(num_nodes)
+    # n2 = random.randrange(num_nodes)
+    # while n2 == n1:
+    #     n2 = random.randrange(num_nodes)
+    # edge = (n1, n2)
+
+    n1 = random_nodes.pop()
+    n2 = random_nodes.pop()
     while n2 == n1:
-        n2 = random.randrange(num_nodes)
+        n2 = random_nodes.pop()
     edge = (n1, n2)
 
     if A[edge] == 1:
         A[edge] = 0
         did_change = True
         num_edges -= 1
-    else:
+    elif not utils.is_reachable(A, n1, n2):
         A[edge] = 1
-        if utils.is_DAG(A):
-            did_change = True
-            num_edges += 1
-        else:
-            A[edge] = 0
+        did_change = True
+        num_edges += 1
     
     return A, edge, did_change
 

@@ -99,9 +99,9 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     else:
         move_weights = [0.4, 0.6]
     
-    moves = random.choices([0, 1], k=num_iters, weights=move_weights)
+    moves = (np.random.random(num_iters) < move_weights[1]).astype(np.int8)
 
-    # Setuo fast access random nodes
+    # Setup fast random nodes
     global random_nodes
     random_nodes = list(np.random.randint(0, num_nodes, num_iters * 2))
 
@@ -223,7 +223,6 @@ def MCMC_iteration(move, A, P, bic, ML_data):
 def change_partiton(P):
     global num_colors
 
-    #node_to_change = random.randrange(num_nodes)
     node_to_change = random_nodes.pop()
     old_color = None
     other_colors = []
@@ -254,12 +253,6 @@ def change_edge(A):
     global num_edges
 
     did_change = False
-    # n1 = random.randrange(num_nodes)
-    # n2 = random.randrange(num_nodes)
-    # while n2 == n1:
-    #     n2 = random.randrange(num_nodes)
-    # edge = (n1, n2)
-
     n1 = random_nodes.pop()
     n2 = random_nodes.pop()
     while n2 == n1:

@@ -60,6 +60,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     #Clear cache for new run of algorithm
     calc_lstsq.cache_clear()
 
+
     # Setup global constants
     global my_data
     global num_nodes
@@ -107,19 +108,16 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
     # Setup initial guesses
     global num_edges
-    global num_colors
+
 
     A = np.zeros((num_nodes, num_nodes))
-    P = [{i} for i in range(num_nodes)]
-
-    if P0 is not None:
-        P = copy.deepcopy(P0)
+    P = utils.PartitionManager(n=num_nodes, chunk_size=100_000)
+ 
 
     if A0 is not None:
         A = A0
     
     num_edges = np.count_nonzero(A)
-    num_colors = sum(1 for part in P if len(part)>0)
 
 
     # Setup for iters
@@ -128,7 +126,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
     if mode == "bic":
         best_A = A.copy()
-        best_P = utils.sorted_partition(P)
+        best_P = utils.sorted_partition(P.P)
         best_bic = bic
         best_iter = 0
         num_fails = 0
@@ -136,10 +134,10 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         # Run MCMC iters
         for i in range(num_iters):
             move = moves[i]
-            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data)    
+            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data)  
             if bic > best_bic:
                 best_A = A.copy()
-                best_P = utils.sorted_partition(P)
+                best_P = utils.sorted_partition(P.P)
                 best_bic = bic
                 best_iter = i
             num_fails += fail
@@ -159,7 +157,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         for i in range(num_iters):
             move = moves[i]
             A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data)
-            cashe[utils.hash_DAG(A, P)] += 1
+            cashe[utils.hash_DAG(A, P.P)] += 1
             num_fails += fail
 
         most_visited = max(cashe, key=cashe.get)
@@ -178,38 +176,34 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
             return CPDAG_A, best_P, num_visits
     
 def MCMC_iteration(move, A, P, bic, ML_data):
-    global num_colors
     global num_edges
 
     # Create new colored DAG based on move
     if move:
         A, edge, did_change = change_edge(A)
-        if did_change:
-            potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
+        if did_change:  
+            potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)     
         else:
             return A, P, bic, ML_data, 0
-    else:
-        P, node, old_color, new_color = change_partiton(P)
+    else: 
+        node, old_color, new_color = P.propose_move()
+        P.perform_move(node, old_color, new_color)
         potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, old_color, new_color)
-        
+     
    
     # Metropolis algorithm to accept or reject new colored DAG
     if random.random() <= np.exp(potential_bic - bic):
         new_bic = potential_bic
         new_ML_data = potential_ML_data
         failed = 0
+        if not move:
+            P.commit_move(node, old_color, new_color)
     else:
         if move:
             A[edge] = 1 - A[edge]
             num_edges += 2*A[edge] - 1
         else:
-            P[new_color].remove(node)
-            P[old_color].add(node)
-
-            if len(P[new_color]) == 0:
-                num_colors -= 1
-            if len(P[old_color]) == 1:
-                num_colors += 1
+            P.undo_move(node, old_color, new_color)
             
         new_bic = bic
         new_ML_data = ML_data
@@ -218,36 +212,6 @@ def MCMC_iteration(move, A, P, bic, ML_data):
     return A, P, new_bic, new_ML_data, failed
 
 
-
-# For moves
-def change_partiton(P):
-    global num_colors
-
-    node_to_change = random_nodes.pop()
-    old_color = None
-    other_colors = []
-
-    for i, part in enumerate(P):
-        if node_to_change in part:
-            old_color = i
-        elif len(part) != 0:
-            other_colors.append(i)
-        else:
-            empty_color = i
-
-    if len(P[old_color]) != 1:
-        other_colors.append(empty_color)
-    else:
-        num_colors -= 1
-
-    P[old_color].remove(node_to_change)
-    new_color = random.choice(other_colors)
-    P[new_color].add(node_to_change)
-
-    if len(P[new_color]) == 1:
-        num_colors += 1
-
-    return P, node_to_change, old_color, new_color
 
 def change_edge(A):
     global num_edges
@@ -285,7 +249,7 @@ def score_DAG_full(A, P):
 
     # Calculate decomposed BIC
     bic_decomp = [0] * num_nodes
-    for i, block in enumerate(P):
+    for i, block in enumerate(P.P):
         if len(block) == 0:
             continue
         tot = 0
@@ -296,7 +260,7 @@ def score_DAG_full(A, P):
         bic_decomp[i] = -len(block) * (math.log(block_omega) + 1)
     
     # Calculate full BIC
-    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)
+    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + len(P.active_blocks))
     
     return bic, [omegas_ML, bic_decomp]
 
@@ -308,7 +272,7 @@ def score_DAG_color_edit(P, ML_data, old_color, new_color):
 
     # Update decomposed BIC
     for block_index in [old_color, new_color]:
-        block = P[block_index]
+        block = P.P[block_index]
         if len(block) == 0:
              bic_decomp[block_index] = 0
              continue
@@ -320,7 +284,7 @@ def score_DAG_color_edit(P, ML_data, old_color, new_color):
         bic_decomp[block_index] = -len(block) * (math.log(block_omega) + 1)
 
     # Calculate full BIC
-    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)
+    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + len(P.active_blocks))
     
     return bic, [omegas_ML, bic_decomp]
 
@@ -340,18 +304,18 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
    
     # Update decomposed BIC
-    for i, block in enumerate(P):
-        if active_node in block:
-            tot = 0
-            for node in block:
-                tot += omegas_ML[node]
-            omega = tot / len(block)
+    active_block_id = P.node_to_block[active_node]
+    active_block = P.P[active_block_id]
+    tot = 0
+    for node in active_block:
+        tot += omegas_ML[node]
+    omega = tot / len(active_block)
 
-            bic_decomp[i] = -len(block) * (math.log(omega) + 1)
+    bic_decomp[active_block_id] = -len(active_block) * (math.log(omega) + 1)
 
 
     # Calculate full BIC
-    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + num_colors)
+    bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + len(P.active_blocks))
 
     return bic, [omegas_ML, bic_decomp]
 

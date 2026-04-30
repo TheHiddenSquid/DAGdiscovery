@@ -7,6 +7,112 @@ from scipy import stats
 from scipy.optimize import linear_sum_assignment
 
 
+class PartitionManager:
+    __slots__ = ['n', 'node_to_block', 'P', 'active_blocks', 'block_to_active_idx', 
+                 'empty_blocks', 'block_to_empty_idx', 'chunk_size', 'proposal_nodes', 'current_step']  
+      
+    def __init__(self, n, chunk_size=100000):
+        self.n = n
+        self.chunk_size = chunk_size
+
+        # Primary Data Structures
+        self.P = [set([i]) for i in range(n)]
+        self.node_to_block = list(range(n))
+        
+        # O(1) Management for Active Blocks
+        self.active_blocks = list(range(n))
+        self.block_to_active_idx = list(range(n))
+        
+        # O(1) Management for Empty Blocks
+        self.empty_blocks = []
+        self.block_to_empty_idx = [-1] * n # -1 means not in empty list
+
+        # Setup for fast RNG
+        self.proposal_nodes = np.random.randint(0, n, size=chunk_size)
+        self.current_step = 0
+
+    def _get_random_node(self):
+        if self.current_step >= self.chunk_size:
+            self.proposal_nodes = np.random.randint(0, self.n, size=self.chunk_size)
+            self.current_step = 0
+        
+        node = self.proposal_nodes[self.current_step]
+        self.current_step += 1
+        return node
+
+    def _remove_active(self, b_id):
+        idx = self.block_to_active_idx[b_id]
+        last_b = self.active_blocks[-1]
+        self.active_blocks[idx] = last_b
+        self.block_to_active_idx[last_b] = idx
+        self.active_blocks.pop()
+
+    def _add_active(self, b_id):
+        self.block_to_active_idx[b_id] = len(self.active_blocks)
+        self.active_blocks.append(b_id)
+
+    def _remove_empty(self, b_id):
+        idx = self.block_to_empty_idx[b_id]
+        last_b = self.empty_blocks[-1]
+        self.empty_blocks[idx] = last_b
+        self.block_to_empty_idx[last_b] = idx
+        self.empty_blocks.pop()
+
+    def _add_empty(self, b_id):
+        self.block_to_empty_idx[b_id] = len(self.empty_blocks)
+        self.empty_blocks.append(b_id)
+
+    def propose_move(self):
+        """
+        Returns (node, old_block, new_block)
+        """
+        node = self._get_random_node()
+        old_idx = self.node_to_block[node]
+        new_idx = random.choice(self.active_blocks)
+
+        if len(self.P[old_idx]) == 1:
+            while new_idx == old_idx:
+                new_idx = random.choice(self.active_blocks)
+        else:
+            if new_idx == old_idx:
+                new_idx = self.empty_blocks[0]
+                
+        return node, old_idx, new_idx
+    
+    def perform_move(self, node, old_idx, new_idx):
+        """
+        Update self.P for easy MCMC function eval
+        """
+        self.P[old_idx].remove(node)
+        self.P[new_idx].add(node)
+
+    def undo_move(self, node, old_idx, new_idx):
+        """
+        Undoes preform_move in case MCMC fails
+        """
+        self.P[new_idx].remove(node)
+        self.P[old_idx].add(node)
+                
+    def commit_move(self, node, old_idx, new_idx):
+        """Updates the data-structure after MCMC acceptance"""
+        # 1. Update Old Block
+        if len(self.P[old_idx]) == 0:
+            self._remove_active(old_idx)
+            self._add_empty(old_idx)
+            
+        # 2. Update New Block
+        if  len(self.P[new_idx]) == 1:
+            self._remove_empty(new_idx)
+            self._add_active(new_idx)
+            
+        self.node_to_block[node] = new_idx
+
+    def __repr__(self):
+        return str(self.P)
+    
+    def __str__(self):
+        return str(self.P)
+
 # DAG generation
 def get_random_DAG(num_nodes, edge_prob = 0.5):
     # Generate erdős-rényi under-triangular matrix
@@ -116,6 +222,7 @@ def is_reachable(A, i, j):
                     
     return False
 
+@njit(cache=True)
 def get_parents(node, A):
     parents = []
     n = np.shape(A)[0]

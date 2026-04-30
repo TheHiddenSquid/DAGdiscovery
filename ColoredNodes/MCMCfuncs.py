@@ -181,14 +181,14 @@ def MCMC_iteration(move, A, P, bic, ML_data):
     # Create new colored DAG based on move
     if move:
         A, edge, did_change = change_edge(A)
-        if did_change:  
-            potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)     
+        if did_change:
+            potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)  
         else:
             return A, P, bic, ML_data, 0
     else: 
         node, old_color, new_color = P.propose_move()
         P.perform_move(node, old_color, new_color)
-        potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, old_color, new_color)
+        potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, node, old_color, new_color)
      
    
     # Metropolis algorithm to accept or reject new colored DAG
@@ -249,12 +249,15 @@ def score_DAG_full(A, P):
 
     # Calculate decomposed BIC
     bic_decomp = [0] * num_nodes
+    block_sums = [0] * num_nodes
+
     for i, block in enumerate(P.P):
         if len(block) == 0:
             continue
         tot = 0
         for node in block:
             tot += omegas_ML[node]
+        block_sums[i] = tot
         block_omega = tot / len(block)
 
         bic_decomp[i] = -len(block) * (math.log(block_omega) + 1)
@@ -262,62 +265,68 @@ def score_DAG_full(A, P):
     # Calculate full BIC
     bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + len(P.active_blocks))
     
-    return bic, [omegas_ML, bic_decomp]
+    return bic, [omegas_ML, bic_decomp, block_sums]
 
-def score_DAG_color_edit(P, ML_data, old_color, new_color):
+def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
     
     # ML data is the same
-    omegas_ML, bic_decomp = ML_data
+    omegas_ML, bic_decomp, block_sums = ML_data
     bic_decomp = bic_decomp.copy()
+    block_sums = block_sums.copy()
 
     # Update decomposed BIC
-    for block_index in [old_color, new_color]:
-        block = P.P[block_index]
-        if len(block) == 0:
-             bic_decomp[block_index] = 0
-             continue
-        tot = 0
-        for node in block:
-            tot += omegas_ML[node]
-        block_omega = tot / len(block)
+    old_block = P.P[old_color]
+    
+    if len(old_block) != 0:
+        block_sums[old_color] -= omegas_ML[node]
+        old_block_omega = block_sums[old_color] / len(old_block)
+        bic_decomp[old_color] = -len(old_block) * (math.log(old_block_omega) + 1)
+    else:
+        block_sums[old_color] = 0
+        bic_decomp[old_color] = 0
 
-        bic_decomp[block_index] = -len(block) * (math.log(block_omega) + 1)
+    new_block = P.P[new_color]
+    block_sums[new_color] += omegas_ML[node]
+    new_block_omega = block_sums[new_color] / len(new_block)
+    bic_decomp[new_color] = -len(new_block) * (math.log(new_block_omega) + 1)
 
     # Calculate full BIC
     bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + len(P.active_blocks))
     
-    return bic, [omegas_ML, bic_decomp]
+    return bic, [omegas_ML, bic_decomp, block_sums]
 
 def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
     # Get old ML-eval
-    omegas_ML, bic_decomp = ML_data
+    omegas_ML, bic_decomp, block_sums = ML_data
     omegas_ML = omegas_ML.copy()
     bic_decomp = bic_decomp.copy()
+    block_sums = block_sums.copy()
 
 
     # Update ML-eval
     _, active_node = changed_edge
     parents = utils.get_parents(active_node, A)
     _, ss_res = calc_lstsq(active_node, tuple(parents))
-    omegas_ML[active_node] = ss_res / num_samples
+    old_omega_ML = omegas_ML[active_node]
+    new_omega_ML = ss_res / num_samples
+    omegas_ML[active_node] = new_omega_ML
+  
 
-   
     # Update decomposed BIC
     active_block_id = P.node_to_block[active_node]
     active_block = P.P[active_block_id]
-    tot = 0
-    for node in active_block:
-        tot += omegas_ML[node]
-    omega = tot / len(active_block)
+    block_sums[active_block_id] -= old_omega_ML
+    block_sums[active_block_id] += new_omega_ML
+    block_omega = block_sums[active_block_id] / len(active_block)
 
-    bic_decomp[active_block_id] = -len(active_block) * (math.log(omega) + 1)
+    bic_decomp[active_block_id] = -len(active_block) * (math.log(block_omega) + 1)
 
 
     # Calculate full BIC
     bic = sum(bic_decomp)/2 - BIC_constant * (num_edges + len(P.active_blocks))
 
-    return bic, [omegas_ML, bic_decomp]
+    return bic, [omegas_ML, bic_decomp, block_sums]
 
 
 @functools.cache

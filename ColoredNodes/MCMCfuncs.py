@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import numpy as np
 import utils
+from numba import njit
 
 # Main MCMC functions
 
@@ -99,7 +100,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         move_weights = [0.4, 0.6]
     
     moves = (np.random.random(num_iters) < move_weights[1]).astype(np.int8)
-    random_floats = np.random.random(size=num_iters)
+    random_floats = np.log(np.random.random(size=num_iters)) # pre logged to not have to do exp
 
     # Setup fast random nodes
     global random_nodes
@@ -193,7 +194,7 @@ def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
      
 
     # Metropolis algorithm to accept or reject new colored DAG
-    if accept_float <= np.exp(potential_bic - bic):
+    if accept_float <= potential_bic - bic:
         new_bic = potential_bic
         new_ML_data = potential_ML_data
         failed = 0
@@ -338,18 +339,31 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
 @functools.cache
 def calc_lstsq_G(node, parents):
-    g_nn = G[node, node]
-    
-    if len(parents) == 0:
-        return g_nn
-    
-    g_pa = G[parents, node]
-    G_pa = G[parents, :][:, parents]
-    beta = np.linalg.solve(G_pa, g_pa)
-    ss_res = g_nn - np.dot(beta, g_pa)
-    
-    return ss_res
+    return calc_lstsq_G_numba(node, parents, G)
 
+@njit(cache=True)
+def calc_lstsq_G_numba(node, parents, G):
+
+    k = len(parents)
+    if k == 0:
+        return G[node, node]
+    
+    A = np.zeros((k, k))
+    for i in range(k):
+        for j in range(k):
+            A[i, j] = G[parents[i], parents[j]]
+            
+    b = np.zeros(k)
+    for i in range(k):
+        b[i] = G[parents[i], node]
+        
+    beta = np.linalg.solve(A, b)
+    
+    explained = 0.0
+    for i in range(k):
+        explained += beta[i] * b[i]
+        
+    return G[node, node] - explained
 
 
 def main():

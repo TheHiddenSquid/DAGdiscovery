@@ -461,3 +461,18 @@ def generate_color_map(P):
 def hash_DAG(edge_array, partition):
     return (edge_array.tobytes(), tuple(tuple(x) for x in sorted_partition(partition)))
 
+# @functools.cache
+# def calc_lstsq_G_old(node, parents):
+#     g_nn = G[node, node]
+    
+#     if len(parents) == 0:
+#         return g_nn
+    
+#     g_pa = G[parents, node]
+#     G_pa = G[parents, :][:, parents]
+#     beta = np.linalg.solve(G_pa, g_pa)
+#     ss_res = g_nn - np.dot(beta, g_pa)
+    
+#     return ss_res
+
+

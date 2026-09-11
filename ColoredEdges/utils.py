@@ -106,19 +106,10 @@ def generate_colored_DAG(num_nodes, num_edge_colors, num_node_colors, p = 0.5):
 
 def generate_sample(size, lambda_matrix, omega_matrix):
     no_nodes = len(omega_matrix)
-
-    errors = np.zeros((no_nodes,size), dtype="float64")
-    for i, omega in enumerate(omega_matrix):
-        rv = stats.norm(scale = omega)
-        errors[i,:] = rv.rvs(size=size)
-
-    X = np.transpose(np.linalg.inv(np.identity(no_nodes) - lambda_matrix))
-    
-    sample = np.zeros((no_nodes,size), dtype="float64")
-    for i in range(size):
-        sample[:,i] = np.matmul(X, errors[:,i])
-    
-    return np.transpose(sample)
+    errors = np.random.normal(loc=0.0, scale=np.sqrt(omega_matrix)[:, None], size=(no_nodes, size))
+    X = np.linalg.inv(np.eye(no_nodes) - lambda_matrix).T
+    sample = X @ errors
+    return sample.T
 
 
 

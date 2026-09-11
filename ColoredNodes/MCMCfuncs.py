@@ -4,8 +4,9 @@ import time
 from collections import defaultdict
 
 import numpy as np
-import utils
 from numba import njit
+
+import utils
 
 # Main MCMC functions
 
@@ -57,18 +58,17 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     """
 
     #Clear cache for new run of algorithm
-    calc_lstsq_G.cache_clear()
+    calc_lstsq_S.cache_clear()
 
 
     # Setup global constants
     global num_nodes
-    global num_samples
     global BIC_constant
-    global G
+    global S
 
-    G = data.T @ data
     num_nodes = data.shape[1]
     num_samples = data.shape[0]
+    S = (1/num_samples) * data.T @ data
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
 
@@ -244,8 +244,8 @@ def score_DAG_full(A, P):
     omegas_ML = [0] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        ss_res = calc_lstsq_G(node, tuple(parents))
-        omegas_ML[node] = ss_res / num_samples
+        ss_res = calc_lstsq_S(node, tuple(parents))
+        omegas_ML[node] = ss_res
 
 
     # Calculate decomposed BIC
@@ -313,9 +313,9 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     # Update ML-eval
     _, active_node = changed_edge
     parents = utils.get_parents(active_node, A)
-    ss_res = calc_lstsq_G(active_node, tuple(parents))
+    ss_res = calc_lstsq_S(active_node, tuple(parents))
     old_omega_ML = omegas_ML[active_node]
-    new_omega_ML = ss_res / num_samples
+    new_omega_ML = ss_res
     omegas_ML[active_node] = new_omega_ML
 
 
@@ -338,11 +338,11 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
 
 @functools.cache
-def calc_lstsq_G(node, parents):
-    return calc_lstsq_G_numba(node, parents, G)
+def calc_lstsq_S(node, parents):
+    return calc_lstsq_S_numba(node, parents, S)
 
 @njit(cache=True)
-def calc_lstsq_G_numba(node, parents, G):
+def calc_lstsq_S_numba(node, parents, G):
 
     k = len(parents)
     if k == 0:

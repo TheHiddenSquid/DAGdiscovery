@@ -48,9 +48,7 @@ def get_data_df(num):
                     # res = ges.fit_bic(data=samples)
                     # GES_edge_array = res[0]
                     # GES_SHD = utils.calc_SHD(real_edge_array, GES_edge_array)
-                    # df.loc[-1] = [num_nodes, nc_used, edge_prob, num_samples, "GES", GES_SHD, None]
-                    # df.index = df.index + 1
-                    # df = df.sort_index()
+                    # rows.append([num_nodes, nc_used, edge_prob, num_samples, "GES", GES_SHD, None])
                     
                     # MCMC_BIC estimate of graph
                     MCMC_edge_array, MCMC_partition, _ = MCMCfuncs.CausalMCMC(samples)
@@ -62,9 +60,7 @@ def get_data_df(num):
                     # greedy_edge_array, greedy_partition, _ = Greedyfuncs.CausalGreedySearch(samples, num_waves=5)
                     # greedy_SHD = utils.calc_SHD(real_edge_array, greedy_edge_array)
                     # greedy_CHD = utils.calc_CHD(real_partition, greedy_partition)
-                    # df.loc[-1] = [num_nodes, nc_used, edge_prob, num_samples, "Greedy", greedy_SHD, greedy_CHD]
-                    # df.index = df.index + 1
-                    # df = df.sort_index()
+                    # rows.append([num_nodes, nc_used, edge_prob, num_samples, "Greedy", greedy_SHD, greedy_CHD])
     
     t_end = time.perf_counter()
     df = pd.DataFrame(reversed(rows), columns=["num_nodes", "num_colors", "edge_prob", "num_samples", "Algorithm", "SHD", "CHD"])

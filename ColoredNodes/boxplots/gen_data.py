@@ -1,3 +1,9 @@
+import os
+
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+
 import random
 import sys
 import time
@@ -24,7 +30,8 @@ def get_data_df(num):
 
     i = 0
     t_start = time.perf_counter()
-    df = pd.DataFrame(columns=["num_nodes", "num_colors", "edge_prob", "num_samples", "Algorithm", "SHD", "CHD"])
+    rows = []
+
     for num_nodes in size_options: 
         for edge_prob in edge_probabilities:
             for nc in color_options:
@@ -49,9 +56,7 @@ def get_data_df(num):
                     MCMC_edge_array, MCMC_partition, _ = MCMCfuncs.CausalMCMC(samples)
                     MCMC_SHD = utils.calc_SHD(real_edge_array, MCMC_edge_array)
                     MCMC_CHD = utils.calc_CHD(real_partition, MCMC_partition)
-                    df.loc[-1] = [num_nodes, nc_used, edge_prob, num_samples, "MCMC_BIC", MCMC_SHD, MCMC_CHD]
-                    df.index = df.index + 1
-                    df = df.sort_index()
+                    rows.append([num_nodes, nc_used, edge_prob, num_samples, "MCMC_BIC", MCMC_SHD, MCMC_CHD])
 
                     # Greedy estimate of graph
                     # greedy_edge_array, greedy_partition, _ = Greedyfuncs.CausalGreedySearch(samples, num_waves=5)
@@ -62,6 +67,7 @@ def get_data_df(num):
                     # df = df.sort_index()
     
     t_end = time.perf_counter()
+    df = pd.DataFrame(reversed(rows), columns=["num_nodes", "num_colors", "edge_prob", "num_samples", "Algorithm", "SHD", "CHD"])
 
     return num, df, t_end-t_start
 
@@ -83,17 +89,10 @@ def main():
             dfs.append(df)
     final_df = pd.concat(dfs)
 
-    # for i in range(num_tests):
-    #     num, df, duration = get_data_df(i)
-    #     print(f"{num}, took, {duration} s")
-    #     df.to_csv(f"df{num}out.csv", index=False)
-    #     dfs.append(df)
-    # final_df = pd.concat(dfs)
-
 
     t_end = time.perf_counter()
     print(f"All done in {t_end-t_start} s")
-    final_df.to_csv("out_all_algs.csv", index=False)
+    final_df.to_csv("out_all_algs2.csv", index=False)
 
 
 if __name__ == "__main__":

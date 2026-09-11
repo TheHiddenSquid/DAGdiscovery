@@ -3,7 +3,6 @@ import random
 import networkx as nx
 import numpy as np
 from numba import njit
-from scipy import stats
 from scipy.optimize import linear_sum_assignment
 
 
@@ -158,19 +157,13 @@ def generate_colored_DAG(num_nodes, num_colors, edge_prob = 0.5):
 
 def generate_sample(size, lambda_matrix, omega_matrix):
     no_nodes = len(omega_matrix)
+    errors = np.random.normal(loc=0.0, scale=np.sqrt(omega_matrix)[:, None], size=(no_nodes, size))
+    X = np.linalg.inv(np.eye(no_nodes) - lambda_matrix).T
+    sample = X @ errors
+    return sample.T
 
-    errors = np.zeros((no_nodes,size), dtype="float64")
-    for i, omega in enumerate(omega_matrix):
-        rv = stats.norm(scale = omega)
-        errors[i,:] = rv.rvs(size=size)
 
-    X = np.transpose(np.linalg.inv(np.identity(no_nodes) - lambda_matrix))
-    
-    sample = np.zeros((no_nodes,size), dtype="float64")
-    for i in range(size):
-        sample[:,i] = np.matmul(X, errors[:,i])
-    
-    return np.transpose(sample)
+
 
 
 

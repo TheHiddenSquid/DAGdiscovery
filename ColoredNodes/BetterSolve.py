@@ -1,15 +1,19 @@
-import copy
 import functools
 import math
 import random
+import time
+from collections.abc import Iterable
 
+import ges
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import utils
 from numba import njit
 
 # Main functions
 
-def CausalGreedySearch(samples, num_waves = 5):
+def DAG_Search(samples, num_starts = 5):
 
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
@@ -29,41 +33,41 @@ def CausalGreedySearch(samples, num_waves = 5):
     # Setup iterations
     best_A = np.zeros((num_nodes, num_nodes))
     num_edges = np.count_nonzero(best_A)
-    best_bic, _ = score_DAG_full(best_A, best_P)
+    best_bic, best_ss_res, _ = score_DAG_full(best_A)
 
-    edge_probs = list(np.linspace(0,1,num_waves))
-    num_colors = [int(x) for x in np.linspace(1,num_nodes,num_waves)]
+    edge_probs = list(np.linspace(0,1,num_starts))
+    num_colors = [int(x) for x in np.linspace(1,num_nodes,num_starts)]
 
     
     # Perform iterations
-    for i in range(num_waves):
+    for i in range(num_starts):
         _, lambda_matrix, _ = utils.generate_colored_DAG(num_nodes, num_colors[i], edge_probs[i])
         A = np.array(lambda_matrix != 0, dtype=np.int64)
 
         num_edges = np.count_nonzero(A)
-        bic, ML_data = score_DAG_full(A, P)
+        bic, ss_res, _ = score_DAG_full(A)
         sorted_edges = get_sorted_edges(A)
         done = False
 
         while not done:
-            A, bic, ML_data, sorted_edges, done = Greedyiteration(A, bic, ML_data, sorted_edges)
+            A, bic, ss_res, sorted_edges, done = iteration(A, bic, ss_res, sorted_edges)
             if bic > best_bic:
                 best_A = A.copy()
+                best_ss_res = ss_res.copy()
                 best_bic = bic
 
     # Ectract optimal partition
-    best_P = None
+    best_P, _ = get_optimal_partition(best_ss_res)
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic
     
-def Greedyiteration(A, bic, ML_data, sorted_edges):
+def iteration(A, bic, ss_res, sorted_edges):
     global num_edges
 
     best_move = None
     best_A = None
-    best_P = None
     best_bic = bic
-    best_ML_data = None
+    best_ss_res = None
     edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
 
 
@@ -72,12 +76,12 @@ def Greedyiteration(A, bic, ML_data, sorted_edges):
     for edge in edges_giving_DAGs:
         A[edge] = 1
         num_edges += 1
-        potential_bic, potential_ML_data = score_DAG_edge_edit(A, ML_data, edge)
+        potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, edge)
 
         if potential_bic > best_bic:
             best_A = A.copy()
             best_bic = potential_bic
-            best_ML_data = potential_ML_data
+            best_ss_res = potential_ss_res
             best_move = "add_edge"
             best_saved_edge = edge
     
@@ -90,12 +94,12 @@ def Greedyiteration(A, bic, ML_data, sorted_edges):
         A[edge] = 0
         num_edges -= 1
         
-        potential_bic, potential_ML_data = score_DAG_edge_edit(A, ML_data, edge)
+        potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, edge)
 
         if potential_bic > best_bic:
             best_A = A.copy()
             best_bic = potential_bic
-            best_ML_data = potential_ML_data
+            best_ss_res = potential_ss_res
             best_move = "remove_edge"
             best_saved_edge = edge
         
@@ -103,15 +107,14 @@ def Greedyiteration(A, bic, ML_data, sorted_edges):
         num_edges += 1
 
 
-
     # Do the best possible jump
 
-    if best_ML_data is None:
-        return A, bic, ML_data, sorted_edges, True
+    if best_ss_res is None:
+        return A, bic, ss_res, sorted_edges, True
     
     else:
         new_bic = best_bic 
-        new_ML_data = best_ML_data
+        new_ss_res = best_ss_res
         
 
         if best_move == "add_edge":
@@ -124,7 +127,7 @@ def Greedyiteration(A, bic, ML_data, sorted_edges):
             new_sorted_edges = update_sorted_edges_REMOVE(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
 
         
-    return new_A, new_bic, new_ML_data, new_sorted_edges, False
+    return new_A, new_bic, new_ss_res, new_sorted_edges, False
 
 
 
@@ -200,74 +203,33 @@ def update_sorted_edges_ADD(A, edges_in, addable_edges, not_addable_edges, added
 
 # For DAG heuristic
 def score_DAG_full(A):
-
-    # Calculate ML-eval via least sqares
-    ss_res = [0] * num_nodes
-    for node in range(num_nodes):
-        parents = utils.get_parents(node, A)
-        ss_res[node] = calc_lstsq_S(node, tuple(parents))
-
-
-    # Calculate decomposed BIC
-    bic_decomp = [0] * num_nodes
-    block_sums = [0] * num_nodes
-
-    for i, block in enumerate(P):
-        if len(block) == 0:
-            continue
-        tot = 0
-        for node in block:
-            tot += ss_res[node]
-        block_sums[i] = tot
-        block_omega = tot / len(block)
-
-        bic_decomp[i] = -len(block) * (math.log(block_omega) + 1)
+    ss_res = get_ss_res(A, range(num_nodes))
+    P, score = get_optimal_partition(ss_res)
+    bic = - score - BIC_constant * num_edges
     
-    # Calculate full BIC
-    bic_decomp_sum = sum(bic_decomp)
-    nc = sum(1 for x in P if len(x)!=0)
-    bic = bic_decomp_sum/2 - BIC_constant * (num_edges + nc)
-    
-    return bic, [ss_res, block_sums, bic_decomp, bic_decomp_sum]
+    return bic, ss_res, P
 
-
-def score_DAG_edge_edit(A, ML_data, changed_edge):
-
-    # Get old ML-eval
-    ss_res, block_sums, bic_decomp, bic_decomp_sum = ML_data
+def score_DAG_edge_edit(A, ss_res, changed_edge):
     ss_res = ss_res.copy()
-    block_sums = block_sums.copy()
-    bic_decomp = bic_decomp.copy()
-
-    
-    # Update ML-eval
     _, active_node = changed_edge
-    parents = utils.get_parents(active_node, A)
-    old_node_ss_res = ss_res[active_node]
-    new_node_ss_res = calc_lstsq_S(active_node, tuple(parents))
-    ss_res[active_node] = new_node_ss_res
+    ss_res[active_node] = get_ss_res(A, active_node)
+    P, score = get_optimal_partition(ss_res)
+    bic = - score - BIC_constant * num_edges
+
+    return bic, ss_res
 
 
-    # Update decomposed BIC
-    for i, block in enumerate(P):
-        if active_node in block:
-            active_block_id = i
-
-    bic_decomp_sum -= bic_decomp[active_block_id]
-    active_block = P[active_block_id]
-    block_sums[active_block_id] -= old_node_ss_res
-    block_sums[active_block_id] += new_node_ss_res
-    block_omega = block_sums[active_block_id] / len(active_block)
-    bic_decomp[active_block_id] = -len(active_block) * (math.log(block_omega) + 1)
-    bic_decomp_sum += bic_decomp[active_block_id]
-  
-
-    # Calculate full BIC
-    nc = sum(1 for x in P if len(x)!=0)
-    bic = bic_decomp_sum/2 - BIC_constant * (num_edges + nc)
-
-    return bic, [ss_res, block_sums, bic_decomp, bic_decomp_sum]
-
+def get_ss_res(A, nodes):
+    if not isinstance(nodes, Iterable):
+        node = nodes
+        parents = utils.get_parents(node, A)
+        return calc_lstsq_S(node, tuple(parents))   
+    else:
+        ss_res = [0] * len(nodes)
+        for i, node in enumerate(nodes):
+            parents = utils.get_parents(node, A)
+            ss_res[i] = calc_lstsq_S(node, tuple(parents))
+        return ss_res
 
 @functools.cache
 def calc_lstsq_S(node, parents):
@@ -301,69 +263,41 @@ def calc_lstsq_S_numba(node, parents, G):
 
 
 
+def get_optimal_partition(ss_res):
+    indexed_ss_res = [[i, ss_res[i]] for i in range(num_nodes)]
+    indexed_ss_res.sort(key=lambda x: x[1])
+    r = [x[1] for x in indexed_ss_res]
 
+    memoization = [[] for _ in range(len(ss_res)+1)] 
 
-
-
-
-def get_optimal_partition(A, X):
-    num_nodes = X.shape[1]
-    num_samples = X.shape[0]
-    S = (1/num_samples) * X.T @ X
-    BIC_constant = np.log(num_samples)/(num_samples*2)
-
-    # Calculate ss_res via least sqares
-    ss_res = [[i, 0] for i in range(num_nodes)]
-    for node in range(num_nodes):
-        parents = utils.get_parents(node, A)
-        ss_res[node][1] = calc_lstsq_S_old(S, node, tuple(parents))
-
-    ss_res.sort(key=lambda x: x[1])
-    r = [x[1] for x in ss_res]
-
-
-    # Solve optimal partition by BIC
-    memoization = [[] for _ in range(len(r)+1)] 
-
-    for i in range(len(r)):
+    for i in range(len(ss_res)):
         active_residuals = r[:i+1]
         options = []
         for j in range(len(active_residuals)):
             last_pivot = j
             earlier_pivots = memoization[j]
             pivots = [*earlier_pivots, last_pivot]
-            val = obj(active_residuals, pivots, BIC_constant)
+            val = objective(active_residuals, pivots)
             options.append([pivots, val])
 
         best = min(options, key=lambda x: x[1])
         memoization[i+1] = best[0]
 
+    
+    best_pivots = best[0]
+    best_score = best[1]
 
     partition = []
-    best_pivots = best[0]
     for i in range(len(best_pivots)-1):
-        partition.append(set(ss_res[i][0] for i in range(best_pivots[i], best_pivots[i+1])))
-    partition.append(set(ss_res[i][0] for i in range(best_pivots[-1], num_nodes)))
+        partition.append(set(indexed_ss_res[i][0] for i in range(best_pivots[i], best_pivots[i+1])))
+    partition.append(set(indexed_ss_res[i][0] for i in range(best_pivots[-1], num_nodes)))
 
     partition = utils.sorted_partition(partition)
-    return partition
+
+
+    return partition, best_score
    
-
-def calc_lstsq_S_old(S, node, parents):
-    g_nn = S[node, node]
-    
-    if len(parents) == 0:
-        return g_nn
-    
-    g_pa = S[parents, node]
-    G_pa = S[parents, :][:, parents]
-    beta = np.linalg.solve(G_pa, g_pa)
-    ss_res = g_nn - np.dot(beta, g_pa)
-    
-    return ss_res
-
-
-def obj(r, pivot_indices, BIC_constant):
+def objective(r, pivot_indices):
     tot = 0
     for i in range(len(pivot_indices)-1):
         start = pivot_indices[i]
@@ -378,25 +312,66 @@ def obj(r, pivot_indices, BIC_constant):
     size = end - start
     tot += size * (math.log(r_mean) + 1)
     
-    return tot + BIC_constant*len(pivot_indices)
+    return 0.5*tot + BIC_constant*len(pivot_indices)
+
 
 
 def main():
     random.seed(2)
     np.random.seed(2)
-    no_nodes = 10
-    no_colors = 2
+    no_nodes = 6
+    no_colors = 3
     edge_prob = 0.6
-    sample_size = 100
+    sample_size = 1000
+    num_starts = 8
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
-    print(real_partition)
 
-    sample = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
-    found_P = get_optimal_partition(real_edge_array, sample)
-    print(found_P)
+    # Create plots
+    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)
+    plt.tight_layout()
+
+
+    # Plot data generating graph
+    plt.axes(ax1)
+    G = nx.DiGraph(real_edge_array)
+    nx.draw_circular(G, node_color=utils.generate_color_map(real_partition), with_labels=True)
+    plt.title("Real DAG")
+
+
+    # GES estimate of graph
+    samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+
+    res = ges.fit_bic(data=samples)
+    GES_edge_array = res[0]
+
+    plt.axes(ax2)
+    G = nx.DiGraph(GES_edge_array)
+    nx.draw_circular(G, with_labels=True)
+    plt.title("GES CPDAG")
+    
+
+    t = time.perf_counter()
+    edge_array, partition, bic = DAG_Search(samples, num_starts)
+
+
+    print(f"Ran Hybrid with {num_starts} starts")
+    print(f"It took {time.perf_counter()-t} seconds")
+    print("Found DAG with BIC:", bic)
+    print("Greedy: SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
+    print("GES: SHD to real DAG was:", utils.calc_SHD(GES_edge_array, real_edge_array))
+    print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
+
+
+    plt.axes(ax3)
+    G = nx.DiGraph(edge_array)
+    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
+    plt.title("Greedy")
+
+
+    plt.show()
 
         
     

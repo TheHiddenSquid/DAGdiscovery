@@ -261,65 +261,71 @@ def calc_lstsq_S_numba(node, parents, G):
 
 
 
-
-
+# Solve dynamic programming to find optimal partition
 def get_optimal_partition(ss_res):
-    indexed_ss_res = [[i, ss_res[i]] for i in range(num_nodes)]
-    indexed_ss_res.sort(key=lambda x: x[1])
-    r = [x[1] for x in indexed_ss_res]
+    residuals = np.asarray(ss_res, dtype=np.float64)
 
-    memoization = [[] for _ in range(len(ss_res)+1)] 
+    if np.any(residuals <= 0):
+        raise ValueError("Residual variances must be positive")
 
-    for i in range(len(ss_res)):
-        active_residuals = r[:i+1]
-        options = []
-        for j in range(len(active_residuals)):
-            last_pivot = j
-            earlier_pivots = memoization[j]
-            pivots = [*earlier_pivots, last_pivot]
-            val = objective(active_residuals, pivots)
-            options.append([pivots, val])
+    order = np.argsort(residuals, kind="stable")
+    sorted_residuals = residuals[order]
 
-        best = min(options, key=lambda x: x[1])
-        memoization[i+1] = best[0]
-
-    
-    best_pivots = best[0]
-    best_score = best[1]
+    best_score, previous = optimal_partition_core(sorted_residuals, BIC_constant)
 
     partition = []
-    for i in range(len(best_pivots)-1):
-        partition.append(set(indexed_ss_res[i][0] for i in range(best_pivots[i], best_pivots[i+1])))
-    partition.append(set(indexed_ss_res[i][0] for i in range(best_pivots[-1], num_nodes)))
+    end = len(residuals)
 
-    partition = utils.sorted_partition(partition)
+    while end > 0:
+        start = int(previous[end])
+        partition.append(set(int(x) for x in order[start:end]))
+        end = start
 
-
-    return partition, best_score
-   
-def objective(r, pivot_indices):
-    tot = 0
-    for i in range(len(pivot_indices)-1):
-        start = pivot_indices[i]
-        end = pivot_indices[i+1]
-        r_mean = np.mean(r[start:end])
-        size = end - start
-        tot += size * (math.log(r_mean) + 1)
-
-    start = pivot_indices[-1]
-    end = len(r)
-    r_mean = np.mean(r[start:end])
-    size = end - start
-    tot += size * (math.log(r_mean) + 1)
+    partition.reverse()
+    return utils.sorted_partition(partition), best_score
     
-    return 0.5*tot + BIC_constant*len(pivot_indices)
+@njit(cache=True)
+def optimal_partition_core(r, penalty):
+    p = len(r)
+
+    prefix = np.empty(p + 1)
+    prefix[0] = 0.0
+    for i in range(p):
+        prefix[i + 1] = prefix[i] + r[i]
+
+    dp = np.empty(p + 1)
+    previous = np.empty(p + 1, dtype=np.int64)
+
+    dp[0] = 0.0
+    previous[0] = -1
+
+    for end in range(1, p + 1):
+        best_score = np.inf
+        best_start = -1
+
+        for start in range(end):
+            size = end - start
+            block_mean = (prefix[end] - prefix[start]) / size
+            block_cost = (0.5 * size * (np.log(block_mean) + 1.0) + penalty)
+            candidate = dp[start] + block_cost
+
+            if candidate < best_score:
+                best_score = candidate
+                best_start = start
+
+        dp[end] = best_score
+        previous[end] = best_start
+
+    return dp[p], previous
+
+
 
 
 
 def main():
     random.seed(2)
     np.random.seed(2)
-    no_nodes = 6
+    no_nodes = 20
     no_colors = 3
     edge_prob = 0.6
     sample_size = 1000

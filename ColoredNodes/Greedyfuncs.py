@@ -1,27 +1,33 @@
 import copy
+import functools
 import math
 
 import numpy as np
 import utils
+from numba import njit
 
 # Main functions
 
 def CausalGreedySearch(samples, num_waves = 5):
+
+    #Clear cache for new run of algorithm
+    calc_lstsq_S.cache_clear()
     
     # Setup global variables
-    global my_data
+    global S
+    global num_edges
     global num_nodes
-    global num_samples
     global BIC_constant
 
-    my_data = samples.T
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
+    S = (1/num_samples) * samples.T @ samples
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
 
     # Setup iterations
     best_A = np.zeros((num_nodes, num_nodes))
+    num_edges = np.count_nonzero(best_A)
     best_P = [{i} for i in range(num_nodes)]
     best_bic, _ = score_DAG_full(best_A, best_P)
 
@@ -36,6 +42,7 @@ def CausalGreedySearch(samples, num_waves = 5):
         for _ in range(num_nodes-len(P)):
             P.append(set())
 
+        num_edges = np.count_nonzero(A)
         bic, ML_data = score_DAG_full(A, P)
         sorted_edges = get_sorted_edges(A)
         done = False
@@ -51,6 +58,8 @@ def CausalGreedySearch(samples, num_waves = 5):
     return CPDAG_A, best_P, best_bic
     
 def Greedyiteration(A, P, bic, ML_data, sorted_edges):
+    global num_edges
+
     best_move = None
     best_A = None
     best_P = None
@@ -80,8 +89,7 @@ def Greedyiteration(A, P, bic, ML_data, sorted_edges):
         for new_color in other_colors:
             P[new_color].add(node)
 
-
-            potential_bic, potential_ML_data = score_DAG_color_edit(A, P, ML_data, old_color, new_color)
+            potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, node, old_color, new_color)
 
             if potential_bic > best_bic:
                 best_P = copy.deepcopy(P)
@@ -97,7 +105,7 @@ def Greedyiteration(A, P, bic, ML_data, sorted_edges):
     # Check all potential edge adds
     for edge in edges_giving_DAGs:
         A[edge] = 1
-
+        num_edges += 1
         potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
         if potential_bic > best_bic:
@@ -108,11 +116,13 @@ def Greedyiteration(A, P, bic, ML_data, sorted_edges):
             best_saved_edge = edge
     
         A[edge] = 0
+        num_edges -= 1
 
 
     # Check all potential edge removals
     for edge in edges_in_DAG:
         A[edge] = 0
+        num_edges -= 1
         
         potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
@@ -124,6 +134,7 @@ def Greedyiteration(A, P, bic, ML_data, sorted_edges):
             best_saved_edge = edge
         
         A[edge] = 1
+        num_edges += 1
 
 
 
@@ -143,10 +154,12 @@ def Greedyiteration(A, P, bic, ML_data, sorted_edges):
         elif best_move == "add_edge":
             new_A = best_A
             new_P = P
+            num_edges += 1
             new_sorted_edges = update_sorted_edges_ADD(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
         elif best_move == "remove_edge":
             new_A = best_A
             new_P = P
+            num_edges -= 1
             new_sorted_edges = update_sorted_edges_REMOVE(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
 
         
@@ -231,93 +244,131 @@ def score_DAG_full(A, P):
     omegas_ML = [0] * num_nodes
     for node in range(num_nodes):
         parents = utils.get_parents(node, A)
-        a = my_data[parents,:]
-        b = my_data[node,:]
-        beta = np.linalg.solve(a @ a.T, a @ b)
-        x = b - a.T @ beta
-        ss_res = np.dot(x,x)
-        omegas_ML[node] = ss_res / num_samples
+        ss_res = calc_lstsq_S(node, tuple(parents))
+        omegas_ML[node] = ss_res
 
 
     # Calculate decomposed BIC
     bic_decomp = [0] * num_nodes
+    block_sums = [0] * num_nodes
+
     for i, block in enumerate(P):
         if len(block) == 0:
             continue
         tot = 0
         for node in block:
             tot += omegas_ML[node]
+        block_sums[i] = tot
         block_omega = tot / len(block)
 
         bic_decomp[i] = -len(block) * (math.log(block_omega) + 1)
     
     # Calculate full BIC
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
+    bic_decomp_sum = sum(bic_decomp)
+    nc = sum(1 for x in P if len(x)!=0)
+    bic = bic_decomp_sum/2 - BIC_constant * (num_edges + nc)
     
-    return bic, [omegas_ML, bic_decomp]
+    return bic, [omegas_ML, block_sums, bic_decomp, bic_decomp_sum]
 
-def score_DAG_color_edit(A, P, ML_data, old_color, new_color):
+def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
     
     # ML data is the same
-    omegas_ML, bic_decomp = ML_data
-    omegas_ML = omegas_ML.copy()
+    omegas_ML, block_sums, bic_decomp, bic_decomp_sum = ML_data
     bic_decomp = bic_decomp.copy()
+    block_sums = block_sums.copy()
 
+    
     # Update decomposed BIC
-    for block_index in [old_color, new_color]:
-        block = P[block_index]
-        if len(block) == 0:
-             bic_decomp[block_index] = 0
-             continue
-        tot = 0
-        for node in block:
-            tot += omegas_ML[node]
-        block_omega = tot / len(block)
+    bic_decomp_sum -= (bic_decomp[old_color] + bic_decomp[new_color])
+    old_block = P[old_color]
+    
+    if len(old_block) != 0:
+        block_sums[old_color] -= omegas_ML[node]
+        old_block_omega = block_sums[old_color] / len(old_block)
+        bic_decomp[old_color] = -len(old_block) * (math.log(old_block_omega) + 1)
+    else:
+        block_sums[old_color] = 0
+        bic_decomp[old_color] = 0
 
-        bic_decomp[block_index] = -len(block) * (math.log(block_omega) + 1)
+    new_block = P[new_color]
+    block_sums[new_color] += omegas_ML[node]
+    new_block_omega = block_sums[new_color] / len(new_block)
+    bic_decomp[new_color] = -len(new_block) * (math.log(new_block_omega) + 1)
+    bic_decomp_sum += (bic_decomp[old_color] + bic_decomp[new_color])
+
 
     # Calculate full BIC
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
-
-    return bic, [omegas_ML, bic_decomp]
+    nc = sum(1 for x in P if len(x)!=0)
+    bic = bic_decomp_sum/2 - BIC_constant * (num_edges + nc)
+    
+    return bic, [omegas_ML, block_sums, bic_decomp, bic_decomp_sum]
 
 def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
     # Get old ML-eval
-    omegas_ML, bic_decomp = ML_data
+    omegas_ML, block_sums, bic_decomp, bic_decomp_sum = ML_data
     omegas_ML = omegas_ML.copy()
+    block_sums = block_sums.copy()
     bic_decomp = bic_decomp.copy()
 
     
     # Update ML-eval
     _, active_node = changed_edge
     parents = utils.get_parents(active_node, A)
-    a = my_data[parents,:]
-    b = my_data[active_node,:]
-    beta = np.linalg.solve(a @ a.T, a @ b)
-    x = b - a.T @ beta
-    ss_res = np.dot(x,x)
-    omegas_ML[active_node] = ss_res / num_samples
+    ss_res = calc_lstsq_S(active_node, tuple(parents))
+    old_omega_ML = omegas_ML[active_node]
+    new_omega_ML = ss_res
+    omegas_ML[active_node] = new_omega_ML
 
-   
+
     # Update decomposed BIC
     for i, block in enumerate(P):
         if active_node in block:
-            tot = 0
-            for node in block:
-                tot += omegas_ML[node]
-            omega = tot / len(block)
+            active_block_id = i
 
-            bic_decomp[i] = -len(block) * (math.log(omega) + 1)
-
+    bic_decomp_sum -= bic_decomp[active_block_id]
+    active_block = P[active_block_id]
+    block_sums[active_block_id] -= old_omega_ML
+    block_sums[active_block_id] += new_omega_ML
+    block_omega = block_sums[active_block_id] / len(active_block)
+    bic_decomp[active_block_id] = -len(active_block) * (math.log(block_omega) + 1)
+    bic_decomp_sum += bic_decomp[active_block_id]
+  
 
     # Calculate full BIC
-    bic = sum(bic_decomp) / 2
-    bic -= BIC_constant * (sum(1 for part in P if len(part)>0) + np.count_nonzero(A))
+    nc = sum(1 for x in P if len(x)!=0)
+    bic = bic_decomp_sum/2 - BIC_constant * (num_edges + nc)
 
-    return bic, [omegas_ML, bic_decomp]
+    return bic, [omegas_ML, block_sums, bic_decomp, bic_decomp_sum]
+
+
+@functools.cache
+def calc_lstsq_S(node, parents):
+    return calc_lstsq_S_numba(node, parents, S)
+
+@njit(cache=True)
+def calc_lstsq_S_numba(node, parents, G):
+
+    k = len(parents)
+    if k == 0:
+        return G[node, node]
+    
+    A = np.zeros((k, k))
+    for i in range(k):
+        for j in range(k):
+            A[i, j] = G[parents[i], parents[j]]
+            
+    b = np.zeros(k)
+    for i in range(k):
+        b[i] = G[parents[i], node]
+        
+    beta = np.linalg.solve(A, b)
+    
+    explained = 0.0
+    for i in range(k):
+        explained += beta[i] * b[i]
+        
+    return G[node, node] - explained
 
 
 def main():

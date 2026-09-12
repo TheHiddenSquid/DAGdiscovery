@@ -13,7 +13,7 @@ from numba import njit
 
 # Main functions
 
-def DAG_Search(samples, num_starts = 5):
+def DAG_Search(samples, num_starts = 5, moves = None):
 
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
@@ -23,6 +23,12 @@ def DAG_Search(samples, num_starts = 5):
     global num_edges
     global num_nodes
     global BIC_constant
+    global used_moves
+
+    if moves == None:
+        used_moves = ["add_edge", "remove_edge", "flip_edge"]
+    else:
+        used_moves = moves
 
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
@@ -73,38 +79,61 @@ def iteration(A, bic, ss_res, sorted_edges):
 
 
     # Check all potential edge adds
-    for edge in edges_giving_DAGs:
-        A[edge] = 1
-        num_edges += 1
-        potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, edge)
+    if "add_edge" in used_moves:
+        for edge in edges_giving_DAGs:
+            A[edge] = 1
+            num_edges += 1
+            potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge])
 
-        if potential_bic > best_bic:
-            best_A = A.copy()
-            best_bic = potential_bic
-            best_ss_res = potential_ss_res
-            best_move = "add_edge"
-            best_saved_edge = edge
-    
-        A[edge] = 0
-        num_edges -= 1
+            if potential_bic > best_bic:
+                best_A = A.copy()
+                best_bic = potential_bic
+                best_ss_res = potential_ss_res
+                best_move = "add_edge"
+                best_saved_edge = edge
+        
+            A[edge] = 0
+            num_edges -= 1
 
 
     # Check all potential edge removals
-    for edge in edges_in_DAG:
-        A[edge] = 0
-        num_edges -= 1
-        
-        potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, edge)
+    if "remove_edge" in used_moves:
+        for edge in edges_in_DAG:
+            A[edge] = 0
+            num_edges -= 1
+            
+            potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge])
 
-        if potential_bic > best_bic:
-            best_A = A.copy()
-            best_bic = potential_bic
-            best_ss_res = potential_ss_res
-            best_move = "remove_edge"
-            best_saved_edge = edge
+            if potential_bic > best_bic:
+                best_A = A.copy()
+                best_bic = potential_bic
+                best_ss_res = potential_ss_res
+                best_move = "remove_edge"
+                best_saved_edge = edge
+            
+            A[edge] = 1
+            num_edges += 1
+
+
+    # Check all potential edge flips
+    if "flip_edge" in used_moves:
+        for edge in edges_in_DAG:
+            rev = (edge[1], edge[0])
+            A[edge] = 0
+            A[rev] = 1
         
-        A[edge] = 1
-        num_edges += 1
+            if utils.is_DAG(A):
+                potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge, rev])
+
+                if potential_bic > best_bic:
+                    best_A = A.copy()
+                    best_bic = potential_bic
+                    best_ss_res = potential_ss_res
+                    best_move = "flip_edge"
+                    best_saved_edge = [edge, rev]
+                        
+            A[edge] = 1
+            A[rev] = 0
 
 
     # Do the best possible jump
@@ -115,17 +144,21 @@ def iteration(A, bic, ss_res, sorted_edges):
     else:
         new_bic = best_bic 
         new_ss_res = best_ss_res
-        
+        new_A = best_A
 
         if best_move == "add_edge":
-            new_A = best_A
             num_edges += 1
-            new_sorted_edges = update_sorted_edges_ADD(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
+            new_sorted_edges = update_sorted_edges_ADD(new_A, *sorted_edges, best_saved_edge)
         elif best_move == "remove_edge":
-            new_A = best_A
             num_edges -= 1
-            new_sorted_edges = update_sorted_edges_REMOVE(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
-
+            new_sorted_edges = update_sorted_edges_REMOVE(new_A, *sorted_edges, best_saved_edge)
+        elif best_move == "flip_edge":
+            removed_edge, added_edge = best_saved_edge
+            intermediate_A = new_A.copy()
+            intermediate_A[added_edge] = 0
+            intermediate_edges = update_sorted_edges_REMOVE(intermediate_A, *sorted_edges, removed_edge)
+            new_sorted_edges = update_sorted_edges_ADD(new_A, *intermediate_edges, added_edge)
+            
         
     return new_A, new_bic, new_ss_res, new_sorted_edges, False
 
@@ -209,13 +242,14 @@ def score_DAG_full(A):
     
     return bic, ss_res, P
 
-def score_DAG_edge_edit(A, ss_res, changed_edge):
+def score_DAG_edge_edit(A, ss_res, changed_edges):
     ss_res = ss_res.copy()
-    _, active_node = changed_edge
-    ss_res[active_node] = get_ss_res(A, active_node)
-    P, score = get_optimal_partition(ss_res)
-    bic = - score - BIC_constant * num_edges
+    for edge in changed_edges:
+        _, active_node = edge
+        ss_res[active_node] = get_ss_res(A, active_node)
 
+    _, score = get_optimal_partition(ss_res)
+    bic = - score - BIC_constant * num_edges
     return bic, ss_res
 
 
@@ -325,7 +359,7 @@ def optimal_partition_core(r, penalty):
 def main():
     random.seed(2)
     np.random.seed(2)
-    no_nodes = 20
+    no_nodes = 10
     no_colors = 3
     edge_prob = 0.6
     sample_size = 1000

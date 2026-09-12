@@ -8,8 +8,8 @@ from numba import njit
 
 # Main functions
 
-def CausalGreedySearch(samples, num_waves = 5):
-
+def CausalGreedySearch(samples, num_waves = 5, moves = None):
+    
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
     
@@ -18,6 +18,12 @@ def CausalGreedySearch(samples, num_waves = 5):
     global num_edges
     global num_nodes
     global BIC_constant
+    global used_moves
+
+    if moves == None:
+        used_moves = ["change_color", "add_edge", "remove_edge", "flip_edge"]
+    else:
+        used_moves = moves
 
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
@@ -68,73 +74,96 @@ def Greedyiteration(A, P, bic, ML_data, sorted_edges):
     edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
 
 
-
     # Check all neighboring colorings
-    for node in range(num_nodes):
-        old_color = None
-        other_colors = []
+    if "change_color" in used_moves:
+        for node in range(num_nodes):
+            old_color = None
+            other_colors = []
 
-        for i, part in enumerate(P):
-            if node in part:
-                old_color = i
-            elif len(part) != 0:
-                other_colors.append(i)
-            else:
-                empty_color = i
+            for i, part in enumerate(P):
+                if node in part:
+                    old_color = i
+                elif len(part) != 0:
+                    other_colors.append(i)
+                else:
+                    empty_color = i
 
-        if len(P[old_color]) != 1:
-            other_colors.append(empty_color)
+            if len(P[old_color]) != 1:
+                other_colors.append(empty_color)
 
-        P[old_color].remove(node)
-        for new_color in other_colors:
-            P[new_color].add(node)
+            P[old_color].remove(node)
+            for new_color in other_colors:
+                P[new_color].add(node)
 
-            potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, node, old_color, new_color)
+                potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, node, old_color, new_color)
 
-            if potential_bic > best_bic:
-                best_P = copy.deepcopy(P)
-                best_bic = potential_bic
-                best_ML_data = potential_ML_data
-                best_move = "change_color"
+                if potential_bic > best_bic:
+                    best_P = copy.deepcopy(P)
+                    best_bic = potential_bic
+                    best_ML_data = potential_ML_data
+                    best_move = "change_color"
 
 
-            P[new_color].remove(node)
-        P[old_color].add(node)
+                P[new_color].remove(node)
+            P[old_color].add(node)
 
 
     # Check all potential edge adds
-    for edge in edges_giving_DAGs:
-        A[edge] = 1
-        num_edges += 1
-        potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
+    if "add_edge" in used_moves:
+        for edge in edges_giving_DAGs:
+            A[edge] = 1
+            num_edges += 1
+            potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
-        if potential_bic > best_bic:
-            best_A = A.copy()
-            best_bic = potential_bic
-            best_ML_data = potential_ML_data
-            best_move = "add_edge"
-            best_saved_edge = edge
-    
-        A[edge] = 0
-        num_edges -= 1
+            if potential_bic > best_bic:
+                best_A = A.copy()
+                best_bic = potential_bic
+                best_ML_data = potential_ML_data
+                best_move = "add_edge"
+                best_saved_edge = edge
+        
+            A[edge] = 0
+            num_edges -= 1
 
 
     # Check all potential edge removals
-    for edge in edges_in_DAG:
-        A[edge] = 0
-        num_edges -= 1
-        
-        potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
+    if "remove_edge" in used_moves:
+        for edge in edges_in_DAG:
+            A[edge] = 0
+            num_edges -= 1
+            
+            potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
-        if potential_bic > best_bic:
-            best_A = A.copy()
-            best_bic = potential_bic
-            best_ML_data = potential_ML_data
-            best_move = "remove_edge"
-            best_saved_edge = edge
+            if potential_bic > best_bic:
+                best_A = A.copy()
+                best_bic = potential_bic
+                best_ML_data = potential_ML_data
+                best_move = "remove_edge"
+                best_saved_edge = edge
+            
+            A[edge] = 1
+            num_edges += 1
+
+
+    if "flip_edge" in used_moves:
+        for edge in edges_in_DAG:
+            rev = (edge[1], edge[0])
+            A[edge] = 0
+            A[rev] = 1
         
-        A[edge] = 1
-        num_edges += 1
+            if utils.is_DAG(A):
+                _, tmp_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
+                potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, tmp_ML_data, rev)
+    
+                if potential_bic > best_bic:
+                    best_A = A.copy()
+                    best_bic = potential_bic
+                    best_ML_data = potential_ML_data
+                    best_move = "flip_edge"
+                    best_saved_edge = [edge, rev]
+                        
+            A[edge] = 1
+            A[rev] = 0
 
 
 
@@ -161,6 +190,14 @@ def Greedyiteration(A, P, bic, ML_data, sorted_edges):
             new_P = P
             num_edges -= 1
             new_sorted_edges = update_sorted_edges_REMOVE(new_A, sorted_edges[0], sorted_edges[1], sorted_edges[2], best_saved_edge)
+        elif best_move == "flip_edge":
+            new_A = best_A
+            new_P = P
+            removed_edge, added_edge = best_saved_edge
+            tmp = new_A.copy()
+            tmp[added_edge] = 0
+            tmp_edges = update_sorted_edges_REMOVE(tmp, *sorted_edges, removed_edge)
+            new_sorted_edges = update_sorted_edges_ADD(new_A, *tmp_edges, added_edge)
 
         
     return new_A, new_P, new_bic, new_ML_data, new_sorted_edges, False

@@ -9,7 +9,8 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from Greedyfuncs import CausalGreedySearch
+
+from ColoredNodes.GreedyColorfuncs import CausalGreedyDP
 
 
 def main():
@@ -50,7 +51,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic = CausalGreedySearch(samples, num_waves)
+    edge_array, partition, bic = CausalGreedyDP(samples, num_waves)
 
 
     print(f"Ran Hybrid for {num_waves} waves")

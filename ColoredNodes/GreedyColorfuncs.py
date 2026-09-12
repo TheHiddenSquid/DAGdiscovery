@@ -13,7 +13,7 @@ This is fast per iteratation, but the search space grows extremely quick with p.
 
 # Main functions
 
-def CausalGreedySearch(samples, num_waves = 5, moves = None):
+def CausalGreedyDP(samples, num_waves = 5, moves = None):
     
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
@@ -59,7 +59,7 @@ def CausalGreedySearch(samples, num_waves = 5, moves = None):
         done = False
 
         while not done:
-            A, P, bic, ML_data, sorted_edges, done = Greedyiteration(A, P, bic, ML_data, sorted_edges)
+            A, P, bic, ML_data, sorted_edges, done = iteration(A, P, bic, ML_data, sorted_edges)
             if bic > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
@@ -68,7 +68,7 @@ def CausalGreedySearch(samples, num_waves = 5, moves = None):
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic
     
-def Greedyiteration(A, P, bic, ML_data, sorted_edges):
+def iteration(A, P, bic, ML_data, sorted_edges):
     global num_edges
 
     best_move = None

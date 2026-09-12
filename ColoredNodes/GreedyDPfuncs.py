@@ -18,7 +18,7 @@ DAGs during the optimization. The drawback is O(p^2) extra computation each iter
 
 # Main functions
 
-def DAG_Search(samples, num_starts = 5, moves = None):
+def CausalGreedyColor(samples, num_starts = 5, moves = None):
 
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
@@ -399,7 +399,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic = DAG_Search(samples, num_starts)
+    edge_array, partition, bic = Causal_Greedy_Color(samples, num_starts)
 
 
     print(f"Ran Hybrid with {num_starts} starts")

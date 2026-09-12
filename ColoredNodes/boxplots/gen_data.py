@@ -14,17 +14,17 @@ import numpy as np
 import pandas as pd
 
 sys.path.append("../")
-import Greedyfuncs
 import MCMCfuncs
 import utils
+
+import ColoredNodes.GreedyColorfuncs as GreedyColorfuncs
+import ColoredNodes.GreedyDPfuncs as GreedyDPfuncs
 
 
 def get_data_df(num):
     size_options = [5,8,20]
     edge_probabilities = [0.2,0.4,0.6,0.8]
     sample_options = [100, 500, 1000]
-
-    size_options = [5, 8]
 
     color_options = ["2", "num_nodes/2"]
 
@@ -51,16 +51,22 @@ def get_data_df(num):
                     # rows.append([num_nodes, nc_used, edge_prob, num_samples, "GES", GES_SHD, None])
                     
                     # MCMC_BIC estimate of graph
-                    MCMC_edge_array, MCMC_partition, _ = MCMCfuncs.CausalMCMC(samples)
-                    MCMC_SHD = utils.calc_SHD(real_edge_array, MCMC_edge_array)
-                    MCMC_CHD = utils.calc_CHD(real_partition, MCMC_partition)
-                    rows.append([num_nodes, nc_used, edge_prob, num_samples, "MCMC_BIC", MCMC_SHD, MCMC_CHD])
+                    # MCMC_edge_array, MCMC_partition, _ = MCMCfuncs.CausalMCMC(samples)
+                    # MCMC_SHD = utils.calc_SHD(real_edge_array, MCMC_edge_array)
+                    # MCMC_CHD = utils.calc_CHD(real_partition, MCMC_partition)
+                    # rows.append([num_nodes, nc_used, edge_prob, num_samples, "MCMC_BIC", MCMC_SHD, MCMC_CHD])
 
                     # Greedy estimate of graph
                     # greedy_edge_array, greedy_partition, _ = Greedyfuncs.CausalGreedySearch(samples, num_waves=5)
                     # greedy_SHD = utils.calc_SHD(real_edge_array, greedy_edge_array)
                     # greedy_CHD = utils.calc_CHD(real_partition, greedy_partition)
                     # rows.append([num_nodes, nc_used, edge_prob, num_samples, "Greedy", greedy_SHD, greedy_CHD])
+
+                    # New Greedy estimate of graph
+                    new_greedy_edge_array, new_greedy_partition, _ = GreedyDPfuncs.DAG_Search(samples, num_starts=5)
+                    greedy_SHD = utils.calc_SHD(real_edge_array, new_greedy_edge_array)
+                    greedy_CHD = utils.calc_CHD(real_partition, new_greedy_partition)
+                    rows.append([num_nodes, nc_used, edge_prob, num_samples, "DP Greedy", greedy_SHD, greedy_CHD])
     
     t_end = time.perf_counter()
     df = pd.DataFrame(reversed(rows), columns=["num_nodes", "num_colors", "edge_prob", "num_samples", "Algorithm", "SHD", "CHD"])
@@ -81,14 +87,15 @@ def main():
         result = pool.imap_unordered(get_data_df, [x for x in range(num_tests)])
         for num, df, duration in result:
             print(f"{num}, took, {duration} s")
-            df.to_csv(f"df{num}out.csv", index=False)
+            #df.to_csv(f"df{num}out.csv", index=False)
             dfs.append(df)
     final_df = pd.concat(dfs)
 
 
     t_end = time.perf_counter()
     print(f"All done in {t_end-t_start} s")
-    final_df.to_csv("out_all_algs2.csv", index=False)
+    #final_df.to_csv("out_all_algs.csv", index=False)
+    final_df.to_csv("out_dp_greedy_turn.csv", index=False)
 
 
 if __name__ == "__main__":

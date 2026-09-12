@@ -10,7 +10,13 @@ sys.path.append("../")
 from collections import defaultdict
 
 import utils
-from Greedyfuncs import CausalGreedySearch, Greedyiteration, get_sorted_edges, score_DAG
+
+from ColoredNodes.GreedyColorfuncs import (
+    CausalGreedyDP,
+    get_sorted_edges,
+    iteration,
+    score_DAG,
+)
 
 
 def get_all_4node_DAGs():
@@ -92,7 +98,7 @@ def main():
             current_partition.append(set())
         current_sorted_edges = get_sorted_edges(current_edge_array)
         current_bic = score_DAG(samples, current_edge_array, current_partition)
-        CausalGreedySearch(samples, 0)
+        CausalGreedyDP(samples, 0)
 
         labels = {i:0 for i in range(543)}
         labels[0] = 1
@@ -111,7 +117,7 @@ def main():
         global current_node
 
         ax.clear()
-        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = Greedyiteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
+        current_edge_array, current_partition, current_bic, current_sorted_edges, _ = iteration(samples, current_edge_array, current_partition, current_bic, current_sorted_edges)
 
         A = current_edge_array.astype("int")
         labels[dags.index(A.tobytes())] += 1

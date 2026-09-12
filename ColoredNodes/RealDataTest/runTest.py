@@ -9,8 +9,9 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-from Greedyfuncs import CausalGreedySearch
 from MCMCfuncs import CausalMCMC
+
+from ColoredNodes.GreedyColorfuncs import CausalGreedyDP
 
 
 def main():
@@ -44,7 +45,7 @@ def main():
     plt.title("GES")
     
 
-    edge_array, partition, bic = CausalGreedySearch(samples, num_waves=20)
+    edge_array, partition, bic = CausalGreedyDP(samples, num_waves=20)
     print(partition)
     
     plt.axes(ax2)

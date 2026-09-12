@@ -12,7 +12,7 @@ from collections import defaultdict
 import utils
 
 from ColoredNodes.GreedyColorfuncs import (
-    CausalGreedyDP,
+    CausalGreedyColor,
     get_sorted_edges,
     iteration,
     score_DAG,
@@ -98,7 +98,7 @@ def main():
             current_partition.append(set())
         current_sorted_edges = get_sorted_edges(current_edge_array)
         current_bic = score_DAG(samples, current_edge_array, current_partition)
-        CausalGreedyDP(samples, 0)
+        CausalGreedyColor(samples, 0)
 
         labels = {i:0 for i in range(543)}
         labels[0] = 1

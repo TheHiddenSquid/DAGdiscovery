@@ -13,7 +13,7 @@ This is fast per iteratation, but the search space grows extremely quick with p.
 
 # Main functions
 
-def CausalGreedyDP(samples, num_waves = 5, moves = None):
+def CausalGreedyColor(samples, num_waves = 5, moves = None):
     
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()

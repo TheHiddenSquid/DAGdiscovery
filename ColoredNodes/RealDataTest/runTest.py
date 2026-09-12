@@ -11,7 +11,7 @@ sys.path.append("../")
 import utils
 from MCMCfuncs import CausalMCMC
 
-from ColoredNodes.GreedyColorfuncs import CausalGreedyDP
+from ColoredNodes.GreedyColorfuncs import CausalGreedyColor
 
 
 def main():
@@ -45,7 +45,7 @@ def main():
     plt.title("GES")
     
 
-    edge_array, partition, bic = CausalGreedyDP(samples, num_waves=20)
+    edge_array, partition, bic = CausalGreedyColor(samples, num_waves=20)
     print(partition)
     
     plt.axes(ax2)

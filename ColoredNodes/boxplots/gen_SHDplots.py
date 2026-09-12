@@ -5,6 +5,8 @@ import seaborn as sns
 
 def main():
     df = pd.read_csv("out_all_algs.csv")
+    df = df.loc[df["Algorithm"].isin(["MEC", "MEC+SoV"])]
+    
     size_options = [5,8,20]
     sample_options = [100, 500, 1000]
 

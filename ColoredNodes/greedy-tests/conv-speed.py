@@ -8,7 +8,7 @@ import numpy as np
 sys.path.append("../")
 import utils
 
-from ColoredNodes.GreedyColorfuncs import CausalGreedyDP
+from ColoredNodes.GreedyColorfuncs import CausalGreedyColor
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
             samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
             t = time.perf_counter()
-            CausalGreedyDP(samples, num_waves=5)      
+            CausalGreedyColor(samples, num_waves=5)      
 
             best_times.append(time.perf_counter()-t)
         

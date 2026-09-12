@@ -6,6 +6,11 @@ import numpy as np
 import utils
 from numba import njit
 
+"""
+Greedy solver that searches through the space of all clored DAGs (G, P) - pairs during the optimization. 
+This is fast per iteratation, but the search space grows extremely quick with p.
+"""
+
 # Main functions
 
 def CausalGreedySearch(samples, num_waves = 5, moves = None):

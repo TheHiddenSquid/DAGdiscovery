@@ -11,6 +11,11 @@ import numpy as np
 import utils
 from numba import njit
 
+"""
+Greedy solver that uses the optimal partition for every graph and thus only needs to search through the space of 
+DAGs during the optimization. The drawback is O(p^2) extra computation each iteration.
+"""
+
 # Main functions
 
 def DAG_Search(samples, num_starts = 5, moves = None):

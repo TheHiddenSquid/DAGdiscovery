@@ -5,7 +5,8 @@ import seaborn as sns
 
 def main():
     df = pd.read_csv("out_all_algs.csv")
-    df = df[df["Algorithm"] != "GES"]
+    #df = df[df["Algorithm"] != "GES"]
+    df = df.loc[df["Algorithm"].isin(["GreedyColor", "GreedyColor+turn", "GreedyDP", "GreedyDP+turn"])]
 
     size_options = [5,8,20]
     sample_options = [100, 500, 1000]

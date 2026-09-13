@@ -9,9 +9,8 @@ import numpy as np
 
 sys.path.append("../")
 import utils
+from GreedyColorfuncs import CausalGreedyColor
 from MCMCfuncs import CausalMCMC
-
-from ColoredNodes.GreedyColorfuncs import CausalGreedyColor
 
 
 def main():

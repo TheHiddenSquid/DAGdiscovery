@@ -14,11 +14,10 @@ import numpy as np
 import pandas as pd
 
 sys.path.append("../")
+import GreedyColorfuncs
+import GreedyDPfuncs
 import MCMCfuncs
 import utils
-
-import ColoredNodes.GreedyColorfuncs as GreedyColorfuncs
-import ColoredNodes.GreedyDPfuncs as GreedyDPfuncs
 
 
 def get_data_df(num):
@@ -57,16 +56,16 @@ def get_data_df(num):
                     # rows.append([num_nodes, nc_used, edge_prob, num_samples, "MCMC_BIC", MCMC_SHD, MCMC_CHD])
 
                     # Greedy estimate of graph
-                    # greedy_edge_array, greedy_partition, _ = Greedyfuncs.CausalGreedySearch(samples, num_waves=5)
+                    # greedy_edge_array, greedy_partition, _ = GreedyColorfuncs.CausalGreedyColor(samples, num_waves=5)
                     # greedy_SHD = utils.calc_SHD(real_edge_array, greedy_edge_array)
                     # greedy_CHD = utils.calc_CHD(real_partition, greedy_partition)
-                    # rows.append([num_nodes, nc_used, edge_prob, num_samples, "Greedy", greedy_SHD, greedy_CHD])
+                    # rows.append([num_nodes, nc_used, edge_prob, num_samples, "GreedyColor+turn", greedy_SHD, greedy_CHD])
 
                     # New Greedy estimate of graph
-                    new_greedy_edge_array, new_greedy_partition, _ = GreedyDPfuncs.DAG_Search(samples, num_starts=5)
+                    new_greedy_edge_array, new_greedy_partition, _ = GreedyDPfuncs.CausalGreedyDP(samples, num_starts=5)
                     greedy_SHD = utils.calc_SHD(real_edge_array, new_greedy_edge_array)
                     greedy_CHD = utils.calc_CHD(real_partition, new_greedy_partition)
-                    rows.append([num_nodes, nc_used, edge_prob, num_samples, "DP Greedy", greedy_SHD, greedy_CHD])
+                    rows.append([num_nodes, nc_used, edge_prob, num_samples, "GreedyDP+turn", greedy_SHD, greedy_CHD])
     
     t_end = time.perf_counter()
     df = pd.DataFrame(reversed(rows), columns=["num_nodes", "num_colors", "edge_prob", "num_samples", "Algorithm", "SHD", "CHD"])
@@ -94,8 +93,7 @@ def main():
 
     t_end = time.perf_counter()
     print(f"All done in {t_end-t_start} s")
-    #final_df.to_csv("out_all_algs.csv", index=False)
-    final_df.to_csv("out_dp_greedy_turn.csv", index=False)
+    final_df.to_csv("out_new.csv", index=False)
 
 
 if __name__ == "__main__":

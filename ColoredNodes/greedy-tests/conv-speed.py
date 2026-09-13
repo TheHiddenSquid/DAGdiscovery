@@ -7,8 +7,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-
-from ColoredNodes.GreedyColorfuncs import CausalGreedyColor
+from GreedyColorfuncs import CausalGreedyColor
 
 
 def main():

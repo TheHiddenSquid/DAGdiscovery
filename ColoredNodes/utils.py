@@ -1,4 +1,5 @@
 import random
+from collections.abc import Iterable
 
 import networkx as nx
 import numpy as np
@@ -454,18 +455,33 @@ def generate_color_map(P):
 def hash_DAG(edge_array, partition):
     return (edge_array.tobytes(), tuple(tuple(x) for x in sorted_partition(partition)))
 
+def calc_ss_res(sample, A, nodes):
+    num_samples = sample.shape[0]
+    S = (1/num_samples) * sample.T @ sample
+
+    if not isinstance(nodes, Iterable):
+        node = nodes
+        parents = get_parents(node, A)
+        return calc_lstsq(S, node, tuple(parents))   
+    else:
+        ss_res = [0] * len(nodes)
+        for i, node in enumerate(nodes):
+            parents = get_parents(node, A)
+            ss_res[i] = calc_lstsq(S, node, tuple(parents))
+        return ss_res
+    
 # @functools.cache
-# def calc_lstsq_G_old(node, parents):
-#     g_nn = G[node, node]
+def calc_lstsq(S, node, parents):
+    g_nn = S[node, node]
     
-#     if len(parents) == 0:
-#         return g_nn
+    if len(parents) == 0:
+        return g_nn
     
-#     g_pa = G[parents, node]
-#     G_pa = G[parents, :][:, parents]
-#     beta = np.linalg.solve(G_pa, g_pa)
-#     ss_res = g_nn - np.dot(beta, g_pa)
+    g_pa = S[parents, node]
+    G_pa = S[parents, :][:, parents]
+    beta = np.linalg.solve(G_pa, g_pa)
+    ss_res = g_nn - np.dot(beta, g_pa)
     
-#     return ss_res
+    return ss_res
 
 

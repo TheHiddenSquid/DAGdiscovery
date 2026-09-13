@@ -68,7 +68,7 @@ def CausalGreedyDP(samples, num_starts = 5, moves = None):
                 best_bic = bic
 
     # Ectract optimal partition
-    best_P, _ = get_optimal_partition(best_ss_res)
+    best_P, _ = get_optimal_partition(best_ss_res, BIC_constant)
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic
     
@@ -242,7 +242,7 @@ def update_sorted_edges_ADD(A, edges_in, addable_edges, not_addable_edges, added
 # For DAG heuristic
 def score_DAG_full(A):
     ss_res = get_ss_res(A, range(num_nodes))
-    P, score = get_optimal_partition(ss_res)
+    P, score = get_optimal_partition(ss_res, BIC_constant)
     bic = - score - BIC_constant * num_edges
     
     return bic, ss_res, P
@@ -253,7 +253,7 @@ def score_DAG_edge_edit(A, ss_res, changed_edges):
         _, active_node = edge
         ss_res[active_node] = get_ss_res(A, active_node)
 
-    _, score = get_optimal_partition(ss_res)
+    _, score = get_optimal_partition(ss_res, BIC_constant)
     bic = - score - BIC_constant * num_edges
     return bic, ss_res
 
@@ -301,7 +301,7 @@ def calc_lstsq_S_numba(node, parents, G):
 
 
 # Solve dynamic programming to find optimal partition
-def get_optimal_partition(ss_res):
+def get_optimal_partition(ss_res, penalty):
     residuals = np.asarray(ss_res, dtype=np.float64)
 
     if np.any(residuals <= 0):
@@ -310,7 +310,7 @@ def get_optimal_partition(ss_res):
     order = np.argsort(residuals, kind="stable")
     sorted_residuals = residuals[order]
 
-    best_score, previous = optimal_partition_core(sorted_residuals, BIC_constant)
+    best_score, previous = optimal_partition_core(sorted_residuals, penalty)
 
     partition = []
     end = len(residuals)

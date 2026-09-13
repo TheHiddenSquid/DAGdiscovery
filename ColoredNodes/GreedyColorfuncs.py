@@ -102,7 +102,7 @@ def iteration(A, P, bic, ML_data, sorted_edges):
 
                 potential_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, node, old_color, new_color)
 
-                if potential_bic > best_bic:
+                if is_improvement(potential_bic, best_bic):
                     best_P = copy.deepcopy(P)
                     best_bic = potential_bic
                     best_ML_data = potential_ML_data
@@ -120,7 +120,7 @@ def iteration(A, P, bic, ML_data, sorted_edges):
             num_edges += 1
             potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
-            if potential_bic > best_bic:
+            if is_improvement(potential_bic, best_bic):
                 best_A = A.copy()
                 best_bic = potential_bic
                 best_ML_data = potential_ML_data
@@ -139,7 +139,7 @@ def iteration(A, P, bic, ML_data, sorted_edges):
             
             potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
 
-            if potential_bic > best_bic:
+            if is_improvement(potential_bic, best_bic):
                 best_A = A.copy()
                 best_bic = potential_bic
                 best_ML_data = potential_ML_data
@@ -160,7 +160,7 @@ def iteration(A, P, bic, ML_data, sorted_edges):
                 _, tmp_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
                 potential_bic, potential_ML_data = score_DAG_edge_edit(A, P, tmp_ML_data, rev)
     
-                if potential_bic > best_bic:
+                if is_improvement(potential_bic, best_bic):
                     best_A = A.copy()
                     best_bic = potential_bic
                     best_ML_data = potential_ML_data
@@ -411,6 +411,10 @@ def calc_lstsq_S_numba(node, parents, G):
         explained += beta[i] * b[i]
         
     return G[node, node] - explained
+
+def is_improvement(candidate, current):
+    BIC_TOL = 1e-12
+    return candidate > current + BIC_TOL * max(1.0, abs(current))
 
 
 def main():

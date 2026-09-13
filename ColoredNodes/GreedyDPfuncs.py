@@ -90,7 +90,7 @@ def iteration(A, bic, ss_res, sorted_edges):
             num_edges += 1
             potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge])
 
-            if potential_bic > best_bic:
+            if is_improvement(potential_bic, best_bic):
                 best_A = A.copy()
                 best_bic = potential_bic
                 best_ss_res = potential_ss_res
@@ -109,7 +109,7 @@ def iteration(A, bic, ss_res, sorted_edges):
             
             potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge])
 
-            if potential_bic > best_bic:
+            if is_improvement(potential_bic, best_bic):
                 best_A = A.copy()
                 best_bic = potential_bic
                 best_ss_res = potential_ss_res
@@ -130,7 +130,7 @@ def iteration(A, bic, ss_res, sorted_edges):
             if utils.is_DAG(A):
                 potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge, rev])
 
-                if potential_bic > best_bic:
+                if is_improvement(potential_bic, best_bic):
                     best_A = A.copy()
                     best_bic = potential_bic
                     best_ss_res = potential_ss_res
@@ -358,6 +358,9 @@ def optimal_partition_core(r, penalty):
     return dp[p], previous
 
 
+def is_improvement(candidate, current):
+    BIC_TOL = 1e-12
+    return candidate > current + BIC_TOL * max(1.0, abs(current))
 
 
 
@@ -399,7 +402,7 @@ def main():
     
 
     t = time.perf_counter()
-    edge_array, partition, bic = Causal_Greedy_Color(samples, num_starts)
+    edge_array, partition, bic = CausalGreedyDP(samples, num_starts)
 
 
     print(f"Ran Hybrid with {num_starts} starts")

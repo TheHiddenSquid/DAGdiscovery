@@ -56,17 +56,18 @@ def get_data_df(num):
                     # rows.append([num_nodes, nc_used, edge_prob, num_samples, "MCMC_BIC", MCMC_SHD, MCMC_CHD])
 
                     # Greedy estimate of graph
-                    # greedy_edge_array, greedy_partition, _ = GreedyColorfuncs.CausalGreedyColor(samples, num_waves=5)
+                    # greedy_edge_array, greedy_partition, greedy_bic = GreedyColorfuncs.CausalGreedyColor(samples, num_starts=5)
                     # greedy_SHD = utils.calc_SHD(real_edge_array, greedy_edge_array)
                     # greedy_CHD = utils.calc_CHD(real_partition, greedy_partition)
                     # rows.append([num_nodes, nc_used, edge_prob, num_samples, "GreedyColor+turn", greedy_SHD, greedy_CHD])
 
                     # New Greedy estimate of graph
-                    new_greedy_edge_array, new_greedy_partition, _ = GreedyDPfuncs.CausalGreedyDP(samples, num_starts=5)
-                    greedy_SHD = utils.calc_SHD(real_edge_array, new_greedy_edge_array)
-                    greedy_CHD = utils.calc_CHD(real_partition, new_greedy_partition)
-                    rows.append([num_nodes, nc_used, edge_prob, num_samples, "GreedyDP+turn", greedy_SHD, greedy_CHD])
-    
+                    greedyDP_edge_array, greedyDP_partition, greedyDP_bic = GreedyDPfuncs.CausalGreedyDP(samples, num_starts=5)
+                    greedyPD_SHD = utils.calc_SHD(real_edge_array, greedyDP_edge_array)
+                    greedyPD_CHD = utils.calc_CHD(real_partition, greedyDP_partition)
+                    rows.append([num_nodes, nc_used, edge_prob, num_samples, "GreedyDP+turn", greedyPD_SHD, greedyPD_CHD])
+
+
     t_end = time.perf_counter()
     df = pd.DataFrame(reversed(rows), columns=["num_nodes", "num_colors", "edge_prob", "num_samples", "Algorithm", "SHD", "CHD"])
 

@@ -13,7 +13,7 @@ This is fast per iteratation, but the search space grows extremely quick with p.
 
 # Main functions
 
-def CausalGreedyColor(samples, num_waves = 5, moves = None):
+def CausalGreedyColor(samples, num_starts = 5, moves = None):
     
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
@@ -30,8 +30,7 @@ def CausalGreedyColor(samples, num_waves = 5, moves = None):
     else:
         used_moves = moves
 
-    num_nodes = samples.shape[1]
-    num_samples = samples.shape[0]
+    num_samples, num_nodes = samples.shape
     S = (1/num_samples) * samples.T @ samples
     BIC_constant = np.log(num_samples)/(num_samples*2)
 
@@ -42,12 +41,12 @@ def CausalGreedyColor(samples, num_waves = 5, moves = None):
     best_P = [{i} for i in range(num_nodes)]
     best_bic, _ = score_DAG_full(best_A, best_P)
 
-    edge_probs = list(np.linspace(0,1,num_waves))
-    num_colors = [int(x) for x in np.linspace(1,num_nodes,num_waves)]
+    edge_probs = list(np.linspace(0,1,num_starts))
+    num_colors = [int(x) for x in np.linspace(1,num_nodes,num_starts)]
 
     
     # Perform iterations
-    for i in range(num_waves):
+    for i in range(num_starts):
         P, lambda_matrix, _ = utils.generate_colored_DAG(num_nodes, num_colors[i], edge_probs[i])
         A = np.array(lambda_matrix != 0, dtype=np.int64)
         for _ in range(num_nodes-len(P)):

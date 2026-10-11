@@ -44,7 +44,7 @@ def main():
     plt.title("GES")
     
 
-    edge_array, partition, bic = CausalGreedyColor(samples, num_waves=20)
+    edge_array, partition, bic = CausalGreedyColor(samples, num_starts=20)
     print(partition)
     
     plt.axes(ax2)

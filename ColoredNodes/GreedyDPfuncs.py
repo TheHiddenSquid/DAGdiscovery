@@ -49,6 +49,8 @@ def CausalGreedyDP(samples, num_starts = 5, moves = None):
     edge_probs = list(np.linspace(0,1,num_starts))
     num_colors = [int(x) for x in np.linspace(1,num_nodes,num_starts)]
 
+    visited = set()
+
     
     # Perform iterations
     for i in range(num_starts):
@@ -61,6 +63,12 @@ def CausalGreedyDP(samples, num_starts = 5, moves = None):
         done = False
 
         while not done:
+            key = A.tobytes()
+            if key in visited:
+                print("skip")
+                break   # This continuation was already explored by an earlier start.
+            visited.add(key)
+
             A, bic, ss_res, sorted_edges, done = iteration(A, bic, ss_res, sorted_edges)
             if bic > best_bic:
                 best_A = A.copy()
@@ -365,9 +373,9 @@ def is_improvement(candidate, current):
 
 
 def main():
-    random.seed(2)
-    np.random.seed(2)
-    no_nodes = 10
+    #random.seed(2)
+    #np.random.seed(2)
+    no_nodes = 6
     no_colors = 3
     edge_prob = 0.6
     sample_size = 1000
@@ -378,7 +386,7 @@ def main():
 
 
     # Create plots
-    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)
+    fig, ((ax1, ax2,)) = plt.subplots(1, 2)
     plt.tight_layout()
 
 
@@ -392,32 +400,23 @@ def main():
     # GES estimate of graph
     samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
-    res = ges.fit_bic(data=samples)
-    GES_edge_array = res[0]
-
-    plt.axes(ax2)
-    G = nx.DiGraph(GES_edge_array)
-    nx.draw_circular(G, with_labels=True)
-    plt.title("GES CPDAG")
-    
 
     t = time.perf_counter()
     edge_array, partition, bic = CausalGreedyDP(samples, num_starts)
-
+    plt.axes(ax2)
+    G = nx.DiGraph(edge_array)
+    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
+    plt.title("Greedy")
+    
 
     print(f"Ran Hybrid with {num_starts} starts")
     print(f"It took {time.perf_counter()-t} seconds")
     print("Found DAG with BIC:", bic)
     print("Greedy: SHD to real DAG was:", utils.calc_SHD(edge_array, real_edge_array))
-    print("GES: SHD to real DAG was:", utils.calc_SHD(GES_edge_array, real_edge_array))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 
 
-    plt.axes(ax3)
-    G = nx.DiGraph(edge_array)
-    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
-    plt.title("Greedy")
-
+   
 
     plt.show()
 

@@ -36,7 +36,7 @@ def main():
             samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
             t = time.perf_counter()
-            CausalGreedyColor(samples, num_waves=5)      
+            CausalGreedyColor(samples, num_starts=5)      
 
             best_times.append(time.perf_counter()-t)
         

@@ -28,12 +28,12 @@ class PartitionManager:
         self.block_to_empty_idx = [-1] * n # -1 means not in empty list
 
         # Setup for fast RNG
-        self.proposal_nodes = np.random.randint(0, n, size=chunk_size)
+        self.proposal_nodes = np.random.randint(0, n, size=chunk_size).tolist()
         self.current_step = 0
 
     def _get_random_node(self):
         if self.current_step >= self.chunk_size:
-            self.proposal_nodes = np.random.randint(0, self.n, size=self.chunk_size)
+            self.proposal_nodes = np.random.randint(0, self.n, size=self.chunk_size).tolist()
             self.current_step = 0
         
         node = self.proposal_nodes[self.current_step]

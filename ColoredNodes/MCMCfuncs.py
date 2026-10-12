@@ -4,9 +4,8 @@ import time
 from collections import defaultdict
 
 import numpy as np
-from numba import njit
-
 import utils
+from numba import njit
 
 # Main MCMC functions
 
@@ -135,7 +134,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         for i in range(num_iters):
             move = moves[i]
             accept_float = random_floats[i]
-            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)  
+            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)    
             if bic > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P.P)
@@ -297,7 +296,8 @@ def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
 
 
     # Calculate full BIC
-    bic = bic_decomp_sum/2 - BIC_constant * (num_edges + len(P.active_blocks))
+    num_colors = (len(P.active_blocks) - int(len(old_block) == 0) + int(len(new_block) == 1))
+    bic = bic_decomp_sum/2 - BIC_constant * (num_edges + num_colors)
     
     return bic, [omegas_ML, block_sums, bic_decomp, bic_decomp_sum]
 

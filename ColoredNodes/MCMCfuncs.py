@@ -113,22 +113,27 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     global num_edges
 
 
-    A = np.zeros((num_nodes, num_nodes))
     P = utils.PartitionManager(n=num_nodes, chunk_size=100_000)
  
 
-    if A0 is not None:
-        A = A0
-    
-    num_edges = np.count_nonzero(A)
+    # Bit i in parent_masks[j] represents the edge i -> j. Use Python ints
+    # so shifts remain valid for node indices of 63 and above.
+    if A0 is None:
+        parent_masks = [0] * num_nodes
+    else:
+        parent_masks = [
+            sum(1 << int(parent) for parent in utils.get_parents(node, A0))
+            for node in range(num_nodes)
+        ]
+    num_edges = sum(mask.bit_count() for mask in parent_masks)
 
 
     # Setup for iters
-    bic, ML_data = score_DAG_full(A, P)
+    bic, ML_data = score_DAG_full(parent_masks, P)
 
 
     if mode == "bic":
-        best_A = A.copy()
+        best_masks = parent_masks.copy()
         best_P = utils.sorted_partition(P.P)
         best_bic = bic
         best_iter = 0
@@ -138,14 +143,15 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         for i in range(num_iters):
             move = moves[i]
             accept_float = random_floats[i]
-            bic, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)    
+            bic, fail = MCMC_iteration(move, parent_masks, P, bic, ML_data, accept_float)
             if bic > best_bic:
-                best_A = A.copy()
+                best_masks = parent_masks.copy()
                 best_P = utils.sorted_partition(P.P)
                 best_bic = bic
                 best_iter = i
             num_fails += fail
 
+        best_A = utils.parent_masks_to_adjacency(best_masks)
         CPDAG_A = utils.getCPDAG(best_A, best_P)
         if debug: 
             return CPDAG_A, best_P, best_bic, best_iter, num_fails
@@ -161,16 +167,15 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         for i in range(num_iters):
             move = moves[i]
             accept_float = random_floats[i]
-            bic, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)
-            cashe[utils.hash_DAG(A, P.P)] += 1
+            bic, fail = MCMC_iteration(move, parent_masks, P, bic, ML_data, accept_float)
+            graph_key = (tuple(parent_masks), tuple(tuple(block) for block in utils.sorted_partition(P.P)))
+            cashe[graph_key] += 1
             num_fails += fail
 
         most_visited = max(cashe, key=cashe.get)
         num_visits = cashe[most_visited]
 
-        best_A = most_visited[0]
-        best_A = np.frombuffer(best_A, dtype=np.int64)
-        best_A = np.reshape(best_A, (num_nodes,num_nodes))
+        best_A = utils.parent_masks_to_adjacency(most_visited[0])
 
         best_P = [set(x) for x in most_visited[1]]
 
@@ -180,15 +185,15 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         else:
             return CPDAG_A, best_P, num_visits
     
-def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
+def MCMC_iteration(move, parent_masks, P, bic, ML_data, accept_float):
     """Update ML_data in place only on acceptance; snapshots need their own copies."""
     global num_edges
 
     # Create new colored DAG based on move
     if move:
-        A, edge, did_change = change_edge(A)
+        edge, did_change, edge_added = change_edge(parent_masks)
         if did_change:
-            delta_bic, proposed_update = score_DAG_edge_edit(A, P, ML_data, edge)
+            delta_bic, proposed_update = score_DAG_edge_edit(parent_masks, P, ML_data, edge, edge_added)
         else:
             return bic, 0   
     else:
@@ -219,8 +224,8 @@ def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
         failed = 0
     else:
         if move:
-            A[edge] = 1 - A[edge]
-            num_edges += 2*A[edge] - 1
+            parent_masks[edge[1]] ^= 1 << int(edge[0])
+            num_edges += -1 if edge_added else 1
         else:
             P.undo_move(node, old_color, new_color)
             
@@ -231,39 +236,39 @@ def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
 
 
 # For edge moves
-def change_edge(A):
+def change_edge(parent_masks):
+    """Propose an edge toggle in place; leave cyclic additions unchanged."""
     global num_edges
 
     did_change = False
+    edge_added = None
     n1 = random_nodes.pop()
     n2 = random_nodes.pop()
     while n2 == n1:
         n2 = random_nodes.pop()
     edge = (n1, n2)
 
-    if A[edge] == 1:
-        A[edge] = 0
+    parent_bit = 1 << int(n1)
+    if parent_masks[n2] & parent_bit:
+        parent_masks[n2] ^= parent_bit
         did_change = True
         num_edges -= 1
-    elif not utils.is_reachable(A, n1, n2):
-        A[edge] = 1
+        edge_added = 0
+    elif not utils.is_reachable_masks(parent_masks, n1, n2):
+        parent_masks[n2] ^= parent_bit
         did_change = True
         num_edges += 1
+        edge_added = 1
     
-    return A, edge, did_change
+    return edge, did_change, edge_added
 
 
 # For DAG heuristic
-def score_DAG_full(A, P):
+def score_DAG_full(parent_masks, P):
     """Return the absolute BIC and [omegas_ML, block_sums, bic_decomp]."""
 
     # Calculate ML-eval via least sqares
-    omegas_ML = [0] * num_nodes
-    for node in range(num_nodes):
-        parents = utils.get_parents(node, A)
-        ss_res = calc_lstsq_S(node, tuple(parents))
-        omegas_ML[node] = ss_res
-
+    omegas_ML = [calc_lstsq_S(node, parent_masks[node]) for node in range(num_nodes)]
 
     # Calculate decomposed BIC
     bic_decomp = [0] * num_nodes
@@ -318,8 +323,9 @@ def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
     
     return delta_bic, (proposed_old_sum, proposed_new_sum, proposed_old_decomp, proposed_new_decomp)
 
-def score_DAG_edge_edit(A, P, ML_data, changed_edge):
-    """Score a toggled edge without modifying ML_data.
+def score_DAG_edge_edit(parent_masks, P, ML_data, changed_edge, edge_added):
+    """Score an edge after change_edge() updates parent_masks.
+    Does not modify ML_data.
     Return (delta_bic, (new_omega, new_sum, new_decomp)) for the affected node/block.
     """
 
@@ -329,8 +335,7 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     
     # Update ML-eval
     _, active_node = changed_edge
-    parents = utils.get_parents(active_node, A)
-    ss_res = calc_lstsq_S(active_node, tuple(parents))
+    ss_res = calc_lstsq_S(active_node, parent_masks[active_node])
     old_omega_ML = omegas_ML[active_node]
     new_omega_ML = ss_res
 
@@ -345,15 +350,21 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
   
 
     # Choose the signed penalty directly to avoid NumPy-scalar arithmetic.
-    edge_penalty = BIC_constant if A[changed_edge] else -BIC_constant
+    edge_penalty = BIC_constant if edge_added else -BIC_constant
     delta_bic = (new_decomp - old_decomp)/2 - edge_penalty
 
     return delta_bic, (new_omega_ML, new_sum, new_decomp)
 
 
 @functools.cache
-def calc_lstsq_S(node, parents):
-    return calc_lstsq_S_numba(node, parents, S)
+def calc_lstsq_S(node, parent_mask):
+    """Cache residuals by node and integer mask; decode parents only on a miss."""
+    parents = []
+    while parent_mask:
+        bit = parent_mask & -parent_mask
+        parents.append(bit.bit_length() - 1)
+        parent_mask ^= bit
+    return calc_lstsq_S_numba(node, tuple(parents), S)
 
 @njit(cache=True)
 def calc_lstsq_S_numba(node, parents, G):

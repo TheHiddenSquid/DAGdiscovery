@@ -368,26 +368,35 @@ def calc_lstsq_S(node, parent_mask):
 
 @njit(cache=True)
 def calc_lstsq_S_numba(node, parents, G):
-
+    """Compute residual variance using Cholesky factorization.
+    """
     k = len(parents)
     if k == 0:
         return G[node, node]
-    
-    A = np.zeros((k, k))
-    for i in range(k):
-        for j in range(k):
-            A[i, j] = G[parents[i], parents[j]]
-            
-    b = np.zeros(k)
-    for i in range(k):
-        b[i] = G[parents[i], node]
-        
-    beta = np.linalg.solve(A, b)
-    
+
+    L = np.empty((k, k))
+    y = np.empty(k)
     explained = 0.0
     for i in range(k):
-        explained += beta[i] * b[i]
-        
+        # Build the next row of L directly from G.
+        for j in range(i + 1):
+            value = G[parents[i], parents[j]]
+            for s in range(j):
+                value -= L[i, s] * L[j, s]
+            if i == j:
+                if not value > 0.0:
+                    raise np.linalg.LinAlgError("Parent covariance matrix is not positive definite")
+                L[i, j] = math.sqrt(value)
+            else:
+                L[i, j] = value / L[j, j]
+
+        # Forward substitution needs only the rows built so far.
+        value = G[parents[i], node]
+        for j in range(i):
+            value -= L[i, j] * y[j]
+        y[i] = value / L[i, i]
+        explained += y[i] * y[i]
+
     return G[node, node] - explained
 
 

@@ -225,6 +225,40 @@ def get_parents(node, A):
             parents.append(i)
     return parents
 
+def is_reachable_masks(parent_masks, i, j):
+    """Return whether i is reachable from j, using incoming-edge bitmasks.
+
+    Walk ancestors of i to find j. Thus this checks whether adding i -> j
+    would create a cycle, with the same argument order as is_reachable().
+    Python integer masks support node indices beyond 63.
+    """
+    i, j = int(i), int(j)
+    if i == j:
+        return True
+
+    target = 1 << j
+    visited = 1 << i
+    pending = parent_masks[i]
+    while pending:
+        if pending & target:
+            return True
+        bit = pending & -pending
+        pending ^= bit
+        visited |= bit
+        pending |= parent_masks[bit.bit_length() - 1] & ~visited
+    return False
+
+def parent_masks_to_adjacency(parent_masks):
+    """Convert incoming-edge masks to an int64 matrix with A[parent, child] = 1."""
+    n = len(parent_masks)
+    A = np.zeros((n, n), dtype=np.int64)
+    for child, mask in enumerate(parent_masks):
+        while mask:
+            bit = mask & -mask
+            A[bit.bit_length() - 1, child] = 1
+            mask ^= bit
+    return A
+
 def get_sorted_edges(edge_array):
   
     tmp_edge_array = edge_array.copy()

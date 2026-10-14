@@ -103,11 +103,11 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         move_weights = [0.4, 0.6]
     
     moves = (np.random.random(num_iters) < move_weights[1]).astype(np.int8)
-    random_floats = np.log(np.random.random(size=num_iters)) # pre logged to not have to do exp
+    random_floats = np.log(np.random.random(size=num_iters)).tolist() # pre logged to not have to do exp
 
     # Setup fast random nodes
     global random_nodes
-    random_nodes = list(np.random.randint(0, num_nodes, num_iters * 2))
+    random_nodes = np.random.randint(0, num_nodes, num_iters * 2).tolist()
 
     # Setup initial guesses
     global num_edges

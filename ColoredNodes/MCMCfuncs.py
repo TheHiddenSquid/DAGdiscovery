@@ -286,7 +286,6 @@ def score_DAG_full(A, P):
 
 def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
     """Score a performed color move without modifying ML_data.
-
     Return (delta_bic, (old_sum, new_sum, old_decomp, new_decomp)),
     where all four values describe the proposed blocks after the move.
     """
@@ -321,7 +320,6 @@ def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
 
 def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     """Score a toggled edge without modifying ML_data.
-
     Return (delta_bic, (new_omega, new_sum, new_decomp)) for the affected node/block.
     """
 

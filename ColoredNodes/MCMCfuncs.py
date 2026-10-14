@@ -138,7 +138,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         for i in range(num_iters):
             move = moves[i]
             accept_float = random_floats[i]
-            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)    
+            bic, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)    
             if bic > best_bic:
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P.P)
@@ -161,7 +161,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         for i in range(num_iters):
             move = moves[i]
             accept_float = random_floats[i]
-            A, P, bic, ML_data, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)
+            bic, fail = MCMC_iteration(move, A, P, bic, ML_data, accept_float)
             cashe[utils.hash_DAG(A, P.P)] += 1
             num_fails += fail
 
@@ -190,7 +190,7 @@ def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
         if did_change:
             delta_bic, proposed_update = score_DAG_edge_edit(A, P, ML_data, edge)
         else:
-            return A, P, bic, ML_data, 0   
+            return bic, 0   
     else:
         node, old_color, new_color = P.propose_move()
         P.perform_move(node, old_color, new_color)
@@ -227,7 +227,7 @@ def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
         new_bic = bic
         failed = 1
 
-    return A, P, new_bic, ML_data, failed
+    return new_bic, failed
 
 
 # For edge moves

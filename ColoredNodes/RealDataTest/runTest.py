@@ -30,29 +30,35 @@ def main():
     np.random.seed(1)
 
     # Create plots
-    fig, ((ax1, ax2)) = plt.subplots(1, 2)
+    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)
     plt.tight_layout()
 
 
     res = ges.fit_bic(data=samples)
     GES_edge_array = res[0]
-    print("GES-bic=", res[1])
 
     plt.axes(ax1)
     G = nx.DiGraph(GES_edge_array)
     nx.draw_circular(G, with_labels=True)
-    plt.title("GES")
+    plt.title(f"GES: bic={res[1]:.3f}")
     
 
     edge_array, partition, bic = CausalGreedyColor(samples, num_starts=20)
-    print(partition)
     
     plt.axes(ax2)
     G = nx.DiGraph(edge_array)
     nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
-    plt.title("Greedy")
+    plt.title(f"Greedy: bic={bic:.3f}")
 
 
+    edge_array, partition, bic = CausalMCMC(samples, 10_000_000)
+
+    plt.axes(ax3)
+    G = nx.DiGraph(edge_array)
+    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
+    plt.title(f"MCMC: bic={bic:.3f}")
+
+    
     plt.show()
 
 

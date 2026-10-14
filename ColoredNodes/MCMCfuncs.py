@@ -57,7 +57,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     """
 
     #Clear cache for new run of algorithm
-    calc_lstsq_S.cache_clear()
+    calc_lstsq.cache_clear()
 
 
     # Setup global constants
@@ -268,7 +268,7 @@ def score_DAG_full(parent_masks, P):
     """Return the absolute BIC and [omegas_ML, block_sums, bic_decomp]."""
 
     # Calculate ML-eval via least sqares
-    omegas_ML = [calc_lstsq_S(node, parent_masks[node]) for node in range(num_nodes)]
+    omegas_ML = [calc_lstsq(node, parent_masks[node]) for node in range(num_nodes)]
 
     # Calculate decomposed BIC
     bic_decomp = [0] * num_nodes
@@ -335,7 +335,7 @@ def score_DAG_edge_edit(parent_masks, P, ML_data, changed_edge, edge_added):
     
     # Update ML-eval
     _, active_node = changed_edge
-    ss_res = calc_lstsq_S(active_node, parent_masks[active_node])
+    ss_res = calc_lstsq(active_node, parent_masks[active_node])
     old_omega_ML = omegas_ML[active_node]
     new_omega_ML = ss_res
 
@@ -357,7 +357,7 @@ def score_DAG_edge_edit(parent_masks, P, ML_data, changed_edge, edge_added):
 
 
 @functools.cache
-def calc_lstsq_S(node, parent_mask):
+def calc_lstsq(node, parent_mask):
     """Cache residuals; decode 64-bit parent masks inside Numba on a miss."""
     if parent_mask <= 0xFFFFFFFFFFFFFFFF:
         return calc_lstsq_mask_numba(node, np.uint64(parent_mask), S)
@@ -368,7 +368,7 @@ def calc_lstsq_S(node, parent_mask):
         bit = parent_mask & -parent_mask
         parents.append(bit.bit_length() - 1)
         parent_mask ^= bit
-    return calc_lstsq_S_numba(node, np.array(parents, dtype=np.int64), S)
+    return calc_lstsq_numba(node, np.array(parents, dtype=np.int64), S)
 
 @njit(cache=True)
 def calc_lstsq_mask_numba(node, parent_mask, G):
@@ -385,10 +385,10 @@ def calc_lstsq_mask_numba(node, parent_mask, G):
             count += 1
         parent_mask >>= np.uint64(1)
         index += 1
-    return calc_lstsq_S_numba(node, parents[:count], G)
+    return calc_lstsq_numba(node, parents[:count], G)
 
 @njit(cache=True)
-def calc_lstsq_S_numba(node, parents, G):
+def calc_lstsq_numba(node, parents, G):
     """Compute residual variance using Cholesky factorization.
     """
     k = len(parents)

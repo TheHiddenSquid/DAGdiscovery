@@ -181,28 +181,42 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
             return CPDAG_A, best_P, num_visits
     
 def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
+    """Update ML_data in place only on acceptance; snapshots need their own copies."""
     global num_edges
 
     # Create new colored DAG based on move
     if move:
         A, edge, did_change = change_edge(A)
         if did_change:
-            delta_bic, potential_ML_data = score_DAG_edge_edit(A, P, ML_data, edge)
+            delta_bic, proposed_update = score_DAG_edge_edit(A, P, ML_data, edge)
         else:
             return A, P, bic, ML_data, 0   
     else:
         node, old_color, new_color = P.propose_move()
         P.perform_move(node, old_color, new_color)
-        delta_bic, potential_ML_data = score_DAG_color_edit(P, ML_data, node, old_color, new_color)
+        delta_bic, proposed_update = score_DAG_color_edit(P, ML_data, node, old_color, new_color)
      
 
     # Metropolis algorithm to accept or reject new colored DAG
     if accept_float <= delta_bic:
-        new_bic = bic + delta_bic
-        new_ML_data = potential_ML_data
-        failed = 0
-        if not move:
+        omegas_ML, block_sums, bic_decomp = ML_data
+        if move:
+            new_omega, new_sum, new_decomp = proposed_update
+            active_node = edge[1]
+            active_block = P.node_to_block[active_node]
+            omegas_ML[active_node] = new_omega
+            block_sums[active_block] = new_sum
+            bic_decomp[active_block] = new_decomp
+        else:
+            old_sum, new_sum, old_decomp, new_decomp = proposed_update
+            block_sums[old_color] = old_sum
+            block_sums[new_color] = new_sum
+            bic_decomp[old_color] = old_decomp
+            bic_decomp[new_color] = new_decomp
             P.commit_move(node, old_color, new_color)
+
+        new_bic = bic + delta_bic
+        failed = 0
     else:
         if move:
             A[edge] = 1 - A[edge]
@@ -211,10 +225,9 @@ def MCMC_iteration(move, A, P, bic, ML_data, accept_float):
             P.undo_move(node, old_color, new_color)
             
         new_bic = bic
-        new_ML_data = ML_data
         failed = 1
 
-    return A, P, new_bic, new_ML_data, failed
+    return A, P, new_bic, ML_data, failed
 
 
 # For edge moves
@@ -272,12 +285,14 @@ def score_DAG_full(A, P):
     return bic, [omegas_ML, block_sums, bic_decomp]
 
 def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
-    """Return the BIC change and proposed ML data after P.perform_move()."""
+    """Score a performed color move without modifying ML_data.
+
+    Return (delta_bic, (old_sum, new_sum, old_decomp, new_decomp)),
+    where all four values describe the proposed blocks after the move.
+    """
     
     # ML data is the same
     omegas_ML, block_sums, bic_decomp = ML_data
-    bic_decomp = bic_decomp.copy()
-    block_sums = block_sums.copy()
 
     
     # Update decomposed BIC
@@ -287,31 +302,31 @@ def score_DAG_color_edit(P, ML_data, node, old_color, new_color):
     new_size = len(P.P[new_color])
     
     if old_size != 0:
-        block_sums[old_color] -= omegas_ML[node]
-        bic_decomp[old_color] = size_term[old_size] - old_size * math.log(block_sums[old_color])
+        proposed_old_sum = block_sums[old_color] - omegas_ML[node]
+        proposed_old_decomp = size_term[old_size] - old_size * math.log(proposed_old_sum)
     else:
-        block_sums[old_color] = 0
-        bic_decomp[old_color] = 0
+        proposed_old_sum = 0
+        proposed_old_decomp = 0
 
-    block_sums[new_color] += omegas_ML[node]
-    bic_decomp[new_color] = size_term[new_size] - new_size * math.log(block_sums[new_color])
+    proposed_new_sum = block_sums[new_color] + omegas_ML[node]
+    proposed_new_decomp = size_term[new_size] - new_size * math.log(proposed_new_sum)
 
 
     # Sizes reflect the proposal, but active_blocks is updated only on commit.
     delta_colors = int(new_size == 1) - int(old_size == 0)
-    delta_decomp = (bic_decomp[old_color] - old_decomp) + (bic_decomp[new_color] - new_decomp)
+    delta_decomp = (proposed_old_decomp - old_decomp) + (proposed_new_decomp - new_decomp)
     delta_bic = delta_decomp/2 - BIC_constant * delta_colors
     
-    return delta_bic, [omegas_ML, block_sums, bic_decomp]
+    return delta_bic, (proposed_old_sum, proposed_new_sum, proposed_old_decomp, proposed_new_decomp)
 
 def score_DAG_edge_edit(A, P, ML_data, changed_edge):
-    """Return the BIC change and proposed ML data after toggling changed_edge."""
+    """Score a toggled edge without modifying ML_data.
+
+    Return (delta_bic, (new_omega, new_sum, new_decomp)) for the affected node/block.
+    """
 
     # Get old ML-eval
     omegas_ML, block_sums, bic_decomp = ML_data
-    omegas_ML = omegas_ML.copy()
-    block_sums = block_sums.copy()
-    bic_decomp = bic_decomp.copy()
 
     
     # Update ML-eval
@@ -320,7 +335,6 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
     ss_res = calc_lstsq_S(active_node, tuple(parents))
     old_omega_ML = omegas_ML[active_node]
     new_omega_ML = ss_res
-    omegas_ML[active_node] = new_omega_ML
 
 
     # Update decomposed BIC
@@ -328,16 +342,15 @@ def score_DAG_edge_edit(A, P, ML_data, changed_edge):
 
     old_decomp = bic_decomp[active_block_id]
     block_size = len(P.P[active_block_id])
-    block_sums[active_block_id] -= old_omega_ML
-    block_sums[active_block_id] += new_omega_ML
-    bic_decomp[active_block_id] = size_term[block_size] - block_size * math.log(block_sums[active_block_id])
+    new_sum = block_sums[active_block_id] - old_omega_ML + new_omega_ML
+    new_decomp = size_term[block_size] - block_size * math.log(new_sum)
   
 
     # Choose the signed penalty directly to avoid NumPy-scalar arithmetic.
     edge_penalty = BIC_constant if A[changed_edge] else -BIC_constant
-    delta_bic = (bic_decomp[active_block_id] - old_decomp)/2 - edge_penalty
+    delta_bic = (new_decomp - old_decomp)/2 - edge_penalty
 
-    return delta_bic, [omegas_ML, block_sums, bic_decomp]
+    return delta_bic, (new_omega_ML, new_sum, new_decomp)
 
 
 @functools.cache

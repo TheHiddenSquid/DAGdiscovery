@@ -358,13 +358,34 @@ def score_DAG_edge_edit(parent_masks, P, ML_data, changed_edge, edge_added):
 
 @functools.cache
 def calc_lstsq_S(node, parent_mask):
-    """Cache residuals by node and integer mask; decode parents only on a miss."""
+    """Cache residuals; decode 64-bit parent masks inside Numba on a miss."""
+    if parent_mask <= 0xFFFFFFFFFFFFFFFF:
+        return calc_lstsq_mask_numba(node, np.uint64(parent_mask), S)
+
+    # Preserve support for Python masks with parent indices above 63.
     parents = []
     while parent_mask:
         bit = parent_mask & -parent_mask
         parents.append(bit.bit_length() - 1)
         parent_mask ^= bit
-    return calc_lstsq_S_numba(node, tuple(parents), S)
+    return calc_lstsq_S_numba(node, np.array(parents, dtype=np.int64), S)
+
+@njit(cache=True)
+def calc_lstsq_mask_numba(node, parent_mask, G):
+    """Decode an unsigned 64-bit mask in ascending order, then score its parents."""
+    if parent_mask == 0:
+        return G[node, node]
+
+    parents = np.empty(G.shape[0], dtype=np.int64)
+    count = 0
+    index = 0
+    while parent_mask:
+        if parent_mask & np.uint64(1):
+            parents[count] = index
+            count += 1
+        parent_mask >>= np.uint64(1)
+        index += 1
+    return calc_lstsq_S_numba(node, parents[:count], G)
 
 @njit(cache=True)
 def calc_lstsq_S_numba(node, parents, G):

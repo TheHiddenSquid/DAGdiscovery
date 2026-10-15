@@ -107,7 +107,7 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
     # Setup fast random nodes
     global random_nodes
-    random_nodes = np.random.randint(0, num_nodes, num_iters * 2).tolist()
+    random_nodes = np.random.randint(0, num_nodes, num_iters * 3).tolist()
 
     # Setup initial guesses
     global num_edges

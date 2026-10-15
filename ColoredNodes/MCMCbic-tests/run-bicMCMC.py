@@ -19,7 +19,7 @@ def main():
     no_nodes = 4
     no_colors = 3
     edge_prob = 0.9
-    sample_size = 1000
+    sample_size = 10000
     MCMC_iterations = 1_000_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
@@ -30,45 +30,41 @@ def main():
     plt.tight_layout()
 
 
-    # Plot data generating graph
+    # GES estimate of graph
+    samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
+
+    trueDAG_bic = utils.score_DAG(samples, real_edge_array, real_partition)
+
+    res = ges.fit_bic(data=samples)
+    GES_edge_array = res[0]
+
+    t = time.perf_counter()
+    MCMCedge_array, MCMCpartition, bic, found_iter, _ = CausalMCMC(samples, MCMC_iterations, debug=True)
+    MCMCtime = time.perf_counter()-t
+
+    print("Result of running causalMCMC")
+    print(f"It took {MCMCtime} seconds")
+    print("Found DAG with BIC:", bic)
+    print("Found on iteration:", found_iter)
+    print("MCMC: SHD to real DAG:", utils.calc_SHD(MCMCedge_array, real_edge_array))
+    print("GES: SHD to real DAG:", utils.calc_SHD(GES_edge_array, real_edge_array))
+    print("Correct DAG and correct coloring gives BIC:", trueDAG_bic)
+
+
     plt.axes(ax1)
     G = nx.DiGraph(real_edge_array)
     nx.draw_circular(G, node_color=utils.generate_color_map(real_partition), with_labels=True)
-    plt.title("Real DAG")
-
-
-    # GES estimate of graph
-    t = time.perf_counter()
-    samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
-    res = ges.fit_bic(data=samples)
-    GES_edge_array = res[0]
-    print("sample-gen+GES", time.perf_counter()-t)
+    plt.title(f"Real DAG: bic={trueDAG_bic:.4f}")
 
     plt.axes(ax2)
     G = nx.DiGraph(GES_edge_array)
     nx.draw_circular(G, with_labels=True)
-    plt.title("GES CPDAG")
-    
-
-    t = time.perf_counter()
-    edge_array, partition, bic, found_iter, _ = CausalMCMC(samples, MCMC_iterations, debug=True)
-
-
-    print("Result of running causalMCMC")
-    print(f"It took {time.perf_counter()-t} seconds")
-    print("Found DAG with BIC:", bic)
-    print("Found on iteration:", found_iter)
-    print("MCMC: SHD to real DAG:", utils.calc_SHD(edge_array, real_edge_array))
-    print("GES: SHD to real DAG:", utils.calc_SHD(GES_edge_array, real_edge_array))
-    print("The found DAG with correct coloring gives BIC:", utils.score_DAG(samples, edge_array, real_partition))
-    print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
-
-
+    plt.title(f"GES CPDAG: bic={res[1]/sample_size:.4f}")
 
     plt.axes(ax3)
-    G = nx.DiGraph(edge_array)
-    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
-    plt.title("MCMC")
+    G = nx.DiGraph(MCMCedge_array)
+    nx.draw_circular(G, node_color=utils.generate_color_map(MCMCpartition), with_labels=True)
+    plt.title(f"MCMC: bic={bic:.4f}")
 
 
     plt.show()

@@ -33,13 +33,14 @@ def main():
 
     res = ges.fit_bic(data=samples)
     GES_edge_array = res[0]
+    GESbic = res[1]/sample_size
 
     t = time.perf_counter()
     MCMCedge_array, MCMCpartition, bic, found_iter, _ = CausalMCMC(samples, MCMC_iterations, debug=True)
-    MCMCtime = time.perf_counter()-t
+    taken_time = time.perf_counter()-t
 
     print("Result of running causalMCMC")
-    print(f"It took {MCMCtime} seconds")
+    print(f"It took {taken_time} seconds")
     print("Found DAG with BIC:", bic)
     print("Found on iteration:", found_iter)
     print("MCMC: SHD to real DAG:", utils.calc_SHD(MCMCedge_array, real_edge_array))
@@ -58,7 +59,7 @@ def main():
     plt.axes(ax2)
     G = nx.DiGraph(GES_edge_array)
     nx.draw_circular(G, with_labels=True)
-    plt.title(f"GES: bic={res[1]/sample_size:.4f}")
+    plt.title(f"GES: bic={GESbic:.4f}")
 
     plt.axes(ax3)
     G = nx.DiGraph(MCMCedge_array)

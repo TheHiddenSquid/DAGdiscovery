@@ -9,7 +9,8 @@ from numba import njit
 
 # Main MCMC functions
 
-def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = None, P0 = None, debug = False):
+def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = None, P0 = None, debug = False,
+               *, return_history=False, target_bic=None, chunk_size=10_000):
     """
     Run MCMC to find the colored DAG that best fits the data. The data is assumed to be
     centered.
@@ -20,16 +21,14 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         The n x p array containing the observations,
         where columns correspond to variables and rows to observations.
     num_iters : int, optional
-        The number of MCMC iterations performed. Default is 50*4^p, where p is the number of variables.
-        If p>8 default will take a very long time.
+        Maximum number of MCMC iterations. Default is 25*5^min(p, 8).
+        A target_bic can stop the run earlier.
     mode : [{'bic', 'map'}*], optional
         Option on what DAG the algorithm will return. If 'bic' it returns the DAG with the highest bic-score.
         If 'map' it returns the most visited DAG. Default is 'bic'.
     move_weights : [int, int], optional
         List of probability of changing a color versuis changing an edge. First value is color.
         Default is [0.4, 0.6]
-    start_from_GES : bool, optional
-        Option to start the search at a random GES DAG.
     A0 : numpy.ndarray, optional
         The initial DAG on which the algorithm will run, where where `A0[i,j]
         != 0` implies the edge `i -> j`.
@@ -38,6 +37,21 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     debug : bool, optional
         If true, returns extra values, such as number exact iteration best DAG was found and the number of failed jumps.
 
+    return_history : bool, optional
+        Record the initial BIC and the chain BIC after every attempted iteration,
+        including rejected and unchanged proposals. Default is False.
+    target_bic : float, optional
+        Stop when best_bic >= target_bic, including at the initial state.
+        Supported only in mode='bic'. num_iters remains the iteration limit.
+
+    chunk_size : int, optional
+        Maximum iterations per batch of move and acceptance draws (default
+        10_000). Node draws refill independently in batches of up to
+        3*chunk_size values. Also sets the partition manager's node batch size.
+        Buffers are bounded by num_iters for shorter runs. Changing chunk_size
+        changes the seeded trajectory because random draws are interleaved
+        differently; the proposal and acceptance distributions are unchanged.
+
     Returns
     -------
     estimate_edges : numpy.ndarray
@@ -45,7 +59,14 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     estimate_partition : [[int]*]
         The estimated node-partition.
     total_score : float
-        The score of the estimate.
+        The score of the estimate (visit count in mode='map').
+    diagnostics : dict, optional
+        Appended after the existing return values (including debug values) when
+        return_history=True or target_bic is supplied. Contains 'num_iters'
+        (completed iterations; initial state is iteration zero), 'target_reached'
+        (None when no target was requested), and 'bic_history' (a float64 array
+        of length num_iters+1, or None when recording is disabled).
+        Existing debug best_iter retains its legacy zero-based loop index.
 
     Raises
     ------
@@ -87,11 +108,23 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         raise ValueError("num_iters needs to be positive")
 
     
+    if not isinstance(chunk_size, int) or isinstance(chunk_size, bool):
+        raise TypeError("chunk_size needs to be an int")
+    if chunk_size <= 0:
+        raise ValueError("chunk_size needs to be positive")
+
     # Check that mode is legal
     if mode not in ["bic", "map"]:
         raise ValueError("Mode not supported")
     
     
+    if target_bic is not None:
+        if mode != "bic":
+            raise ValueError("target_bic is only supported in mode='bic'")
+        target_bic = float(target_bic)
+        if not math.isfinite(target_bic):
+            raise ValueError("target_bic must be finite")
+
     # Check that wieghts are legal and prepare moves
     if move_weights is not None:
         if len(move_weights) != 2:
@@ -102,18 +135,29 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     else:
         move_weights = [0.4, 0.6]
     
-    moves = (np.random.random(num_iters) < move_weights[1]).astype(np.int8)
-    random_floats = np.log(np.random.random(size=num_iters)).tolist() # pre logged to not have to do exp
-
-    # Setup fast random nodes
-    global random_nodes
-    random_nodes = np.random.randint(0, num_nodes, num_iters * 3).tolist()
+    # Generate move/acceptance batches only when the loop needs them.
+    chunk_start = chunk_end = 0
+    node_batch_size = min(chunk_size, max(1, num_iters))
+    global random_nodes, random_node_chunk_size
+    random_nodes = []
+    random_node_chunk_size = 3 * node_batch_size
 
     # Setup initial guesses
     global num_edges
 
 
-    P = utils.PartitionManager(n=num_nodes, chunk_size=100_000)
+    P = utils.PartitionManager(n=num_nodes, chunk_size=node_batch_size)
+    if P0 is not None:
+        blocks = [set(block) for block in P0 if len(block)]
+        nodes = [node for block in blocks for node in block]
+        if len(nodes) != num_nodes or set(nodes) != set(range(num_nodes)):
+            raise ValueError("P0 must partition all node indices exactly once")
+        # Merge initial singleton blocks using the manager's own bookkeeping.
+        for block in blocks:
+            destination = min(block)
+            for node in sorted(block - {destination}):
+                P.perform_move(node, node, destination)
+                P.commit_move(node, node, destination)
  
 
     # Bit i in parent_masks[j] represents the edge i -> j. Use Python ints
@@ -130,6 +174,22 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
     # Setup for iters
     bic, ML_data = score_DAG_full(parent_masks, P)
+    bic_history = np.empty(num_iters + 1) if return_history else None
+    if return_history:
+        bic_history[0] = bic
+    completed_iters = 0
+    target_reached = None if target_bic is None else bic >= target_bic
+
+    def finish(result):
+        if return_history or target_bic is not None:
+            # Release unused capacity when a target stops the chain early.
+            history = bic_history
+            if return_history and completed_iters < num_iters:
+                history = bic_history[:completed_iters + 1].copy()
+            return (*result, {"num_iters": completed_iters,
+                              "target_reached": target_reached,
+                              "bic_history": history})
+        return result
 
 
     if mode == "bic":
@@ -140,9 +200,16 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         num_fails = 0
 
         # Run MCMC iters
-        for i in range(num_iters):
-            move = moves[i]
-            accept_float = random_floats[i]
+        for i in range(0 if target_reached else num_iters):
+            if i == chunk_end:
+                batch_size = min(chunk_size, num_iters - i)
+                moves = (np.random.random(batch_size) < move_weights[1]).tolist()
+                random_floats = np.log(np.random.random(batch_size)).tolist()
+                chunk_start = i
+                chunk_end = i + batch_size
+            batch_index = i - chunk_start
+            move = moves[batch_index]
+            accept_float = random_floats[batch_index]
             bic, fail = MCMC_iteration(move, parent_masks, P, bic, ML_data, accept_float)
             if bic > best_bic:
                 best_masks = parent_masks.copy()
@@ -150,13 +217,21 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
                 best_bic = bic
                 best_iter = i
             num_fails += fail
+            if return_history:
+                bic_history[i + 1] = bic
+            if target_bic is not None and best_bic >= target_bic:
+                target_reached = True
+                completed_iters = i + 1
+                break
+        else:
+            completed_iters = 0 if target_reached else num_iters
 
         best_A = utils.parent_masks_to_adjacency(best_masks)
         CPDAG_A = utils.getCPDAG(best_A, best_P)
         if debug: 
-            return CPDAG_A, best_P, best_bic, best_iter, num_fails
+            return finish((CPDAG_A, best_P, best_bic, best_iter, num_fails))
         else:
-            return CPDAG_A, best_P, best_bic
+            return finish((CPDAG_A, best_P, best_bic))
     
 
     if mode == "map":
@@ -165,13 +240,27 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         # Run MCMC iters    
         for i in range(num_iters):
-            move = moves[i]
-            accept_float = random_floats[i]
+            if i == chunk_end:
+                batch_size = min(chunk_size, num_iters - i)
+                moves = (np.random.random(batch_size) < move_weights[1]).tolist()
+                random_floats = np.log(np.random.random(batch_size)).tolist()
+                chunk_start = i
+                chunk_end = i + batch_size
+            batch_index = i - chunk_start
+            move = moves[batch_index]
+            accept_float = random_floats[batch_index]
             bic, fail = MCMC_iteration(move, parent_masks, P, bic, ML_data, accept_float)
             graph_key = (tuple(parent_masks), tuple(tuple(block) for block in utils.sorted_partition(P.P)))
             cashe[graph_key] += 1
             num_fails += fail
+            if return_history:
+                bic_history[i + 1] = bic
+        completed_iters = num_iters
 
+        # With no transitions, return the initial graph with zero visits.
+        if not cashe:
+            graph_key = (tuple(parent_masks), tuple(tuple(block) for block in utils.sorted_partition(P.P)))
+            cashe[graph_key] = 0
         most_visited = max(cashe, key=cashe.get)
         num_visits = cashe[most_visited]
 
@@ -181,9 +270,9 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
         CPDAG_A = utils.getCPDAG(best_A, best_P)
         if debug: 
-            return CPDAG_A, best_P, num_visits, num_fails
+            return finish((CPDAG_A, best_P, num_visits, num_fails))
         else:
-            return CPDAG_A, best_P, num_visits
+            return finish((CPDAG_A, best_P, num_visits))
     
 def MCMC_iteration(move, parent_masks, P, bic, ML_data, accept_float):
     """Update ML_data in place only on acceptance; snapshots need their own copies."""
@@ -242,9 +331,15 @@ def change_edge(parent_masks):
 
     did_change = False
     edge_added = None
+    # Repeated equal-node draws can consume more than three values per move.
+    # Refill independently of the iteration batches, including during retries.
+    if len(random_nodes) < 2:
+        random_nodes.extend(np.random.randint(0, num_nodes, random_node_chunk_size).tolist())
     n1 = random_nodes.pop()
     n2 = random_nodes.pop()
     while n2 == n1:
+        if not random_nodes:
+            random_nodes.extend(np.random.randint(0, num_nodes, random_node_chunk_size).tolist())
         n2 = random_nodes.pop()
     edge = (n1, n2)
 

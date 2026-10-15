@@ -1,15 +1,15 @@
-import copy
 import random
 import sys
+from pathlib import Path
 
 import ges
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-sys.path.append("../")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import utils
-from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_full
+from MCMCfuncs import CausalMCMC
 
 
 def main():
@@ -50,13 +50,6 @@ def main():
     
 
 
-    # Fully random colored DAG
-    initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
-    initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
-    
-
-    
-
     # RUN MCMC
 
     chain_bics = []
@@ -65,46 +58,36 @@ def main():
 
     best_edge_array = None
     best_partition = None
-    best_bic = -np.infty
+    best_bic = -np.inf
     best_iter = None
+    best_chain = None
 
 
     for j in range(no_chains):
         initial_partition, initial_edge_array, _ = utils.generate_colored_DAG(no_nodes, no_nodes, 0.5)
         initial_edge_array = np.array(initial_edge_array != 0, dtype="int")
-        CausalMCMC(samples, 0)
-        initial_bic, initial_ML_data = score_DAG_full(initial_edge_array, initial_partition)
+        edge_array, partition, bic, diagnostics = CausalMCMC(
+            samples, num_iters=MCMC_iterations,
+            A0=initial_edge_array, P0=initial_partition, return_history=True)
+        bics = diagnostics["bic_history"]
 
-        current_edge_array = initial_edge_array.copy()
-        current_partition = initial_partition.copy()
-        current_bic = initial_bic.copy()
-        current_ML_data = initial_ML_data.copy()
-
-        bics = [initial_bic]
-        cumsum = [initial_bic]
-
-        for i in range(MCMC_iterations):
-            
-            move = random.choices([0, 1], k=1, weights=[0.4,0.6])[0]
-            current_edge_array, current_partition, current_bic, current_ML_data, _ = MCMC_iteration(move, current_edge_array, current_partition, current_bic, current_ML_data)
-
-            if current_bic > best_bic:
-                best_edge_array = current_edge_array.copy()
-                best_partition = copy.deepcopy(current_partition)
-                best_bic = current_bic
-                best_iter = j*MCMC_iterations+i
-            
-            bics.append(current_bic)
-            cumsum.append(cumsum[-1]+current_bic)
+        if bic > best_bic:
+            best_edge_array = edge_array
+            best_partition = partition
+            best_bic = bic
+            best_chain = j + 1
+            # Index zero is the initial state; argmax gives the first best visit.
+            best_iter = int(np.argmax(bics))
 
         chain_bics.append(bics)
-        chain_cumsum.append(cumsum)
+        chain_cumsum.append(np.cumsum(bics))
 
 
     print(f"Ran MCMC for {no_chains * MCMC_iterations} iterations")
-    print("Found DAG with BIC:", best_bic)
-    print("Found on iteration:", best_iter)
-    print("SHD to real DAG was:", utils.calc_SHD(best_edge_array, real_edge_array))
+    print("Best BIC:", best_bic)
+    print(f"Found in chain {best_chain}, iteration {best_iter} (0 = initial state)")
+    real_cpdag = utils.getCPDAG(real_edge_array, real_partition)
+    print("SHD to real CPDAG was:", utils.calc_SHD(best_edge_array, real_cpdag))
     print("Correct DAG and correct coloring gives BIC:", utils.score_DAG(samples, real_edge_array, real_partition))
 
 
@@ -112,17 +95,26 @@ def main():
     plt.axes(ax3)
     G = nx.DiGraph(best_edge_array)
     nx.draw_circular(G, node_color=utils.generate_color_map(best_partition), with_labels=True)
-    plt.title("MCMC")
+    plt.title("MCMC CPDAG")
     plt.show()
 
 
+    plt.figure()
     plt.subplot(1,2,1)
     for i in range(no_chains):
-        plt.plot(range(MCMC_iterations+1), chain_bics[i])
+        plt.plot(range(MCMC_iterations+1), chain_bics[i], label=f"Chain {i+1}")
+    plt.xlabel("Iteration (0 = initial state)")
+    plt.ylabel("BIC")
+    plt.legend()
 
     plt.subplot(1,2,2)
     for i in range(no_chains):
-        plt.plot(range(len(chain_cumsum[i])),[chain_cumsum[i][j]/(j+1) for j in range(len(chain_cumsum[i]))])
+        counts = np.arange(1, len(chain_cumsum[i]) + 1)
+        plt.plot(counts - 1, chain_cumsum[i] / counts, label=f"Chain {i+1}")
+    plt.xlabel("Iteration (0 = initial state)")
+    plt.ylabel("Running mean BIC")
+    plt.legend()
+    plt.tight_layout()
 
     plt.show()
 

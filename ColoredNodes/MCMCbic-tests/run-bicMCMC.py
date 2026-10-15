@@ -22,17 +22,13 @@ def main():
     sample_size = 1000
     MCMC_iterations = 1_000_000
 
+    # Generate model + sample
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
     real_edge_array = np.array(real_lambda_matrix != 0, dtype=np.int64)
-
-    # Create plots
-    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)
-    plt.tight_layout()
-
-
-    # GES estimate of graph
     samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
 
+
+    # Run estimates of graph
     trueDAG_bic = utils.score_DAG(samples, real_edge_array, real_partition)
 
     res = ges.fit_bic(data=samples)
@@ -51,6 +47,9 @@ def main():
     print("Correct DAG and correct coloring gives BIC:", trueDAG_bic)
 
 
+    # Create plots
+    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)
+        
     plt.axes(ax1)
     G = nx.DiGraph(real_edge_array)
     nx.draw_circular(G, node_color=utils.generate_color_map(real_partition), with_labels=True)
@@ -66,10 +65,8 @@ def main():
     nx.draw_circular(G, node_color=utils.generate_color_map(MCMCpartition), with_labels=True)
     plt.title(f"MCMC: bic={bic:.4f}")
 
-
+    plt.tight_layout()
     plt.show()
-
-
 
     
 if __name__ == "__main__":

@@ -29,6 +29,7 @@ def CausalGreedyDP(samples, num_starts = 5, moves = None):
     global num_nodes
     global BIC_constant
     global used_moves
+    global size_term
 
     if moves == None:
         used_moves = ["add_edge", "remove_edge", "flip_edge"]
@@ -38,7 +39,8 @@ def CausalGreedyDP(samples, num_starts = 5, moves = None):
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
     S = (1/num_samples) * samples.T @ samples
-    BIC_constant = np.log(num_samples)/(num_samples*2)
+    BIC_constant = math.log(num_samples)/(num_samples*2)
+    size_term = np.array([0.0] + [m * (math.log(m) - 1) for m in range(1, num_nodes + 1)])
 
 
     # Setup iterations
@@ -76,7 +78,7 @@ def CausalGreedyDP(samples, num_starts = 5, moves = None):
                 best_bic = bic
 
     # Ectract optimal partition
-    best_P, _ = get_optimal_partition(best_ss_res, BIC_constant)
+    best_P, _ = get_optimal_partition(best_ss_res, BIC_constant, size_term)
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic
     
@@ -86,8 +88,9 @@ def iteration(A, bic, ss_res, sorted_edges):
     best_move = None
     best_A = None
     best_bic = bic
-    best_ss_res = None
+    best_updates = None
     edges_in_DAG, edges_giving_DAGs, _ = sorted_edges
+    parent_masks = get_parent_masks(A)
 
 
 
@@ -96,12 +99,12 @@ def iteration(A, bic, ss_res, sorted_edges):
         for edge in edges_giving_DAGs:
             A[edge] = 1
             num_edges += 1
-            potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge])
+            potential_bic, potential_updates = score_DAG_edge_edit(ss_res, [edge], [parent_masks[edge[1]] | (1 << int(edge[0]))])
 
             if is_improvement(potential_bic, best_bic):
                 best_A = A.copy()
                 best_bic = potential_bic
-                best_ss_res = potential_ss_res
+                best_updates = potential_updates
                 best_move = "add_edge"
                 best_saved_edge = edge
         
@@ -115,12 +118,12 @@ def iteration(A, bic, ss_res, sorted_edges):
             A[edge] = 0
             num_edges -= 1
             
-            potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge])
+            potential_bic, potential_updates = score_DAG_edge_edit(ss_res, [edge], [parent_masks[edge[1]] & ~ (1 << int(edge[0]))])
 
             if is_improvement(potential_bic, best_bic):
                 best_A = A.copy()
                 best_bic = potential_bic
-                best_ss_res = potential_ss_res
+                best_updates = potential_updates
                 best_move = "remove_edge"
                 best_saved_edge = edge
             
@@ -136,12 +139,15 @@ def iteration(A, bic, ss_res, sorted_edges):
             A[rev] = 1
         
             if utils.is_DAG(A):
-                potential_bic, potential_ss_res = score_DAG_edge_edit(A, ss_res, [edge, rev])
+                potential_bic, potential_updates = score_DAG_edge_edit(
+                    ss_res, [edge, rev],
+                    [parent_masks[edge[1]] & ~(1 << int(edge[0])),
+                     parent_masks[rev[1]] | (1 << int(rev[0]))])
 
                 if is_improvement(potential_bic, best_bic):
                     best_A = A.copy()
                     best_bic = potential_bic
-                    best_ss_res = potential_ss_res
+                    best_updates = potential_updates
                     best_move = "flip_edge"
                     best_saved_edge = [edge, rev]
                         
@@ -151,12 +157,14 @@ def iteration(A, bic, ss_res, sorted_edges):
 
     # Do the best possible jump
 
-    if best_ss_res is None:
+    if best_updates is None:
         return A, bic, ss_res, sorted_edges, True
     
     else:
         new_bic = best_bic 
-        new_ss_res = best_ss_res
+        new_ss_res = ss_res
+        for node, residual in best_updates:
+            new_ss_res[node] = residual
         new_A = best_A
 
         if best_move == "add_edge":
@@ -250,66 +258,126 @@ def update_sorted_edges_ADD(A, edges_in, addable_edges, not_addable_edges, added
 # For DAG heuristic
 def score_DAG_full(A):
     ss_res = get_ss_res(A, range(num_nodes))
-    P, score = get_optimal_partition(ss_res, BIC_constant)
-    bic = - score - BIC_constant * num_edges
-    
+    P, score = get_optimal_partition(ss_res, BIC_constant, size_term)
+    bic = -score - BIC_constant * np.count_nonzero(A)
     return bic, ss_res, P
 
-def score_DAG_edge_edit(A, ss_res, changed_edges):
-    ss_res = ss_res.copy()
-    for edge in changed_edges:
-        _, active_node = edge
-        ss_res[active_node] = get_ss_res(A, active_node)
 
-    _, score = get_optimal_partition(ss_res, BIC_constant)
-    bic = - score - BIC_constant * num_edges
-    return bic, ss_res
+def score_DAG_edge_edit(ss_res, changed_edges, proposed_masks):
+    """Return the candidate BIC and residual updates, leaving ss_res unchanged.
+
+    Re-optimize the partition because an edge edit can change every block.
+    Only the changed residual entries are temporarily substituted; the winning
+    candidate's updates are committed by iteration().
+    """
+    updates = []
+    old_values = []
+    try:
+        for edge, parent_mask in zip(changed_edges, proposed_masks):
+            node = edge[1]
+            residual = calc_lstsq_S(node, parent_mask)
+            old_values.append((node, ss_res[node]))
+            ss_res[node] = residual
+            updates.append((node, residual))
+        _, score = get_optimal_partition(ss_res, BIC_constant, size_term)
+    finally:
+        for node, residual in reversed(old_values):
+            ss_res[node] = residual
+    bic = -score - BIC_constant * num_edges
+    return bic, updates
 
 
 def get_ss_res(A, nodes):
+    parent_masks = get_parent_masks(A)
     if not isinstance(nodes, Iterable):
-        node = nodes
-        parents = utils.get_parents(node, A)
-        return calc_lstsq_S(node, tuple(parents))   
-    else:
-        ss_res = [0] * len(nodes)
-        for i, node in enumerate(nodes):
-            parents = utils.get_parents(node, A)
-            ss_res[i] = calc_lstsq_S(node, tuple(parents))
-        return ss_res
+        return calc_lstsq_S(nodes, parent_masks[nodes])
+    return [calc_lstsq_S(node, parent_masks[node]) for node in nodes]
+
+
+def get_parent_masks(A):
+    """Build cache keys once for a graph without changing its matrix representation."""
+    if len(A) <= 64:
+        return _parent_masks_numba(A).tolist()
+    return [sum(1 << int(parent) for parent in utils.get_parents(node, A))
+            for node in range(len(A))]
+
+@njit(cache=True)
+def _parent_masks_numba(A):
+    masks = np.zeros(len(A), dtype=np.uint64)
+    for node in range(len(A)):
+        for parent in range(len(A)):
+            if A[parent, node] == 1:
+                masks[node] |= np.uint64(1) << np.uint64(parent)
+    return masks
 
 @functools.cache
-def calc_lstsq_S(node, parents):
-    return calc_lstsq_S_numba(node, parents, S)
+def calc_lstsq_S(node, parent_mask):
+    """Cache residuals; decode 64-bit parent masks inside Numba on a miss."""
+    if parent_mask <= 0xFFFFFFFFFFFFFFFF:
+        return calc_lstsq_mask_numba(node, np.uint64(parent_mask), S)
+
+    # Preserve support for Python masks with parent indices above 63.
+    parents = []
+    while parent_mask:
+        bit = parent_mask & -parent_mask
+        parents.append(bit.bit_length() - 1)
+        parent_mask ^= bit
+    return calc_lstsq_S_numba(node, np.array(parents, dtype=np.int64), S)
+
+@njit(cache=True)
+def calc_lstsq_mask_numba(node, parent_mask, G):
+    """Decode an unsigned 64-bit mask in ascending order, then score its parents."""
+    if parent_mask == 0:
+        return G[node, node]
+
+    parents = np.empty(G.shape[0], dtype=np.int64)
+    count = 0
+    index = 0
+    while parent_mask:
+        if parent_mask & np.uint64(1):
+            parents[count] = index
+            count += 1
+        parent_mask >>= np.uint64(1)
+        index += 1
+    return calc_lstsq_S_numba(node, parents[:count], G)
 
 @njit(cache=True)
 def calc_lstsq_S_numba(node, parents, G):
-
+    """Compute residual variance using Cholesky factorization.
+    """
     k = len(parents)
     if k == 0:
         return G[node, node]
-    
-    A = np.zeros((k, k))
-    for i in range(k):
-        for j in range(k):
-            A[i, j] = G[parents[i], parents[j]]
-            
-    b = np.zeros(k)
-    for i in range(k):
-        b[i] = G[parents[i], node]
-        
-    beta = np.linalg.solve(A, b)
-    
+
+    L = np.empty((k, k))
+    y = np.empty(k)
     explained = 0.0
     for i in range(k):
-        explained += beta[i] * b[i]
-        
+        # Build the next row of L directly from G.
+        for j in range(i + 1):
+            value = G[parents[i], parents[j]]
+            for s in range(j):
+                value -= L[i, s] * L[j, s]
+            if i == j:
+                if not value > 0.0:
+                    raise np.linalg.LinAlgError("Parent covariance matrix is not positive definite")
+                L[i, j] = math.sqrt(value)
+            else:
+                L[i, j] = value / L[j, j]
+
+        # Forward substitution needs only the rows built so far.
+        value = G[parents[i], node]
+        for j in range(i):
+            value -= L[i, j] * y[j]
+        y[i] = value / L[i, i]
+        explained += y[i] * y[i]
+
     return G[node, node] - explained
 
 
 
 # Solve dynamic programming to find optimal partition
-def get_optimal_partition(ss_res, penalty):
+def get_optimal_partition(ss_res, penalty, size_terms=None):
     residuals = np.asarray(ss_res, dtype=np.float64)
 
     if np.any(residuals <= 0):
@@ -318,7 +386,7 @@ def get_optimal_partition(ss_res, penalty):
     order = np.argsort(residuals, kind="stable")
     sorted_residuals = residuals[order]
 
-    best_score, previous = optimal_partition_core(sorted_residuals, penalty)
+    best_score, previous = optimal_partition_core(sorted_residuals, penalty, size_terms)
 
     partition = []
     end = len(residuals)
@@ -332,8 +400,13 @@ def get_optimal_partition(ss_res, penalty):
     return utils.sorted_partition(partition), best_score
     
 @njit(cache=True)
-def optimal_partition_core(r, penalty):
+def optimal_partition_core(r, penalty, size_terms=None):
     p = len(r)
+    if size_terms is None:
+        size_terms = np.empty(p + 1)
+        size_terms[0] = 0.0
+        for size in range(1, p + 1):
+            size_terms[size] = size * (math.log(size) - 1.0)
 
     prefix = np.empty(p + 1)
     prefix[0] = 0.0
@@ -352,8 +425,8 @@ def optimal_partition_core(r, penalty):
 
         for start in range(end):
             size = end - start
-            block_mean = (prefix[end] - prefix[start]) / size
-            block_cost = (0.5 * size * (np.log(block_mean) + 1.0) + penalty)
+            block_sum = prefix[end] - prefix[start]
+            block_cost = 0.5 * (size * math.log(block_sum) - size_terms[size]) + penalty
             candidate = dp[start] + block_cost
 
             if candidate < best_score:

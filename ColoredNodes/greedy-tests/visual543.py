@@ -10,8 +10,7 @@ sys.path.append("../")
 from collections import defaultdict
 
 import utils
-
-from ColoredNodes.GreedyColorfuncs import (
+from GreedyColorfuncs import (
     CausalGreedyColor,
     get_sorted_edges,
     iteration,

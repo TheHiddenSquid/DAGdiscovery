@@ -1,13 +1,13 @@
-import copy
 import random
 import sys
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.append("../")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import utils
-from MCMCfuncs import CausalMCMC, MCMC_iteration, score_DAG_full
+from MCMCfuncs import CausalMCMC
 
 
 def main():
@@ -43,22 +43,10 @@ def main():
             
             params = [1-param_list[j], param_list[j]]
 
-            current_partition = copy.deepcopy(start_partition)
-            current_edge_array = start_edge_array.copy()
-
-            CausalMCMC(samples, 0)
-            current_bic, current_ML_data = score_DAG_full(current_edge_array, current_partition)
-
-            best_bic = current_bic
-            rolling_best_bic = [real_bic-best_bic, real_bic-best_bic]
-            
-
-            for k in range(MCMC_iterations):
-                move = random.choices([0, 1], k=1, weights=params)[0]
-                current_edge_array, current_partition, current_bic, current_ML_data, _ = MCMC_iteration(move, current_edge_array, current_partition, current_bic, current_ML_data)
-
-                best_bic = max(best_bic, current_bic)
-                rolling_best_bic.append(real_bic-best_bic)
+            _, _, _, diagnostics = CausalMCMC(
+                samples, num_iters=MCMC_iterations, move_weights=params,
+                A0=start_edge_array, P0=start_partition, return_history=True)
+            rolling_best_bic = real_bic - np.maximum.accumulate(diagnostics["bic_history"])
 
             chain_rolling_best_bic[j].append(rolling_best_bic)
 
@@ -66,13 +54,14 @@ def main():
  
     param_chains = []
     for group in chain_rolling_best_bic:
-        arrays = [np.array(x) for x in group]
-        param_chains.append([np.mean(k) for k in zip(*arrays)])
+        param_chains.append(np.mean(group, axis=0))
 
 
     for k in range(num_params):
-        plt.semilogx(range(MCMC_iterations+2), param_chains[k], label = rf"$\pi$ = {param_list[k]}")
+        plt.plot(range(MCMC_iterations+1), param_chains[k], label = rf"$\pi$ = {param_list[k]}")
 
+    # Include the initial state at iteration zero on the logarithmic plot.
+    plt.xscale("symlog", linthresh=1)
     plt.xlabel("iterations")
     plt.ylabel("true bic - best bic")
     plt.legend()

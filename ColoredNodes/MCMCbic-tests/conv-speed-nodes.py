@@ -1,10 +1,11 @@
 import random
 import sys
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.append("../")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import MCMCfuncs
 import utils
 
@@ -19,7 +20,8 @@ def main():
 
     # RUN MCM
     num_chains = 50
-    max_num_nodes = 9  # 9 takes 40 min
+    max_iters = 100_000_000  # Per-chain limit; raise if the target is not reached.
+    max_num_nodes = 9  # 9 takes 40 min ---- 4min
     
     required_iters_min = []
     required_iters_mean = []
@@ -34,27 +36,14 @@ def main():
             samples = utils.generate_sample(sample_size, real_lambda_matrix, real_omega_matrix)
             real_bic = utils.score_DAG(samples, real_edge_array, real_partition)
 
-            # MCMC setup
-            MCMCfuncs.CausalMCMC(samples, 0)
-            A = np.zeros((num_nodes, num_nodes))
-            P = [{i} for i in range(num_nodes)]
-            current_bic, current_ML_data = MCMCfuncs.score_DAG_full(A, P)
-            best_bic = current_bic           
-            
-            iters = 1
-            while np.exp(best_bic - real_bic) <= 0.95:
-                iters += 1
-                move = random.choices([0, 1], k=1, weights=[0.4,0.6])[0]
-                A, P, current_bic, current_ML_data, _ = MCMCfuncs.MCMC_iteration(move, A, P, current_bic, current_ML_data)
-
-                if current_bic > best_bic:
-                    best_bic = current_bic
-                
-                if iters % 1_000_000 == 0:
-                    print(np.exp(best_bic - real_bic))
-            
-    
-            best_iters.append(iters)
+            _, _, _, diagnostics = MCMCfuncs.CausalMCMC(
+                samples, num_iters=max_iters,
+                target_bic=real_bic + np.log(0.95))
+            if not diagnostics["target_reached"]:
+                raise RuntimeError(
+                    f"Target not reached for {num_nodes} nodes after {max_iters} iterations. "
+                    "Increase max_iters; the capped run is not a convergence time.")
+            best_iters.append(diagnostics["num_iters"])
         
         required_iters_min.append(np.min(best_iters))
         required_iters_mean.append(np.mean(best_iters))
@@ -62,11 +51,13 @@ def main():
 
 
 
-    plt.semilogy(range(2,max_num_nodes), required_iters_min, color="C0", linewidth=0.5)
+    plt.plot(range(2,max_num_nodes), required_iters_min, color="C0", linewidth=0.5)
     plt.fill_between(range(2,max_num_nodes), required_iters_min, required_iters_max, color="C0", alpha=.2)
-    plt.semilogy(range(2,max_num_nodes), required_iters_mean, color="C0", linestyle="-", marker="s", linewidth=1.5)
-    plt.semilogy(range(2,max_num_nodes), required_iters_max, color="C0", linewidth=0.5)
+    plt.plot(range(2,max_num_nodes), required_iters_mean, color="C0", linestyle="-", marker="s", linewidth=1.5)
+    plt.plot(range(2,max_num_nodes), required_iters_max, color="C0", linewidth=0.5)
 
+    # A chain can meet the target at iteration zero.
+    plt.yscale("symlog", linthresh=1)
     plt.xlabel("Nodes")
     plt.ylabel("Iterations")
     plt.title("PH-MCMC: Convergence Speed")

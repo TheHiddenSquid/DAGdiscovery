@@ -29,38 +29,36 @@ def main():
     random.seed(1)
     np.random.seed(1)
 
-    # Create plots
-    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)
-    plt.tight_layout()
-
-
+    
+    # Run estimations
     res = ges.fit_bic(data=samples)
     GES_edge_array = res[0]
+    GESbic = res[1]/len(data)
 
+    GCedge_array, GCpartition, GCbic = CausalGreedyColor(samples, num_starts=20)
+    MCMCedge_array, MCMCpartition, MCMCbic = CausalMCMC(samples, 10_000_000)
+
+
+    # Create plots
+    fig, ((ax1, ax2, ax3)) = plt.subplots(1, 3)
+    
     plt.axes(ax1)
     G = nx.DiGraph(GES_edge_array)
     nx.draw_circular(G, with_labels=True)
-    plt.title(f"GES: bic={res[1]:.3f}")
-    
-
-    edge_array, partition, bic = CausalGreedyColor(samples, num_starts=20)
+    plt.title(f"GES: bic={GESbic:.4f}")
     
     plt.axes(ax2)
-    G = nx.DiGraph(edge_array)
-    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
-    plt.title(f"Greedy: bic={bic:.3f}")
-
-
-    edge_array, partition, bic = CausalMCMC(samples, 10_000_000)
+    G = nx.DiGraph(GCedge_array)
+    nx.draw_circular(G, node_color=utils.generate_color_map(GCpartition), with_labels=True)
+    plt.title(f"Greedy: bic={GCbic:.4f}")
 
     plt.axes(ax3)
-    G = nx.DiGraph(edge_array)
-    nx.draw_circular(G, node_color=utils.generate_color_map(partition), with_labels=True)
-    plt.title(f"MCMC: bic={bic:.3f}")
+    G = nx.DiGraph(MCMCedge_array)
+    nx.draw_circular(G, node_color=utils.generate_color_map(MCMCpartition), with_labels=True)
+    plt.title(f"MCMC: bic={MCMCbic:.4f}")
 
-    
+    plt.tight_layout()
     plt.show()
-
 
     
 if __name__ == "__main__":

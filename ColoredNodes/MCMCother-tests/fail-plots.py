@@ -1,11 +1,11 @@
-import pickle
 import random
 import sys
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.append("../")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import MCMCfuncs
 import utils
 

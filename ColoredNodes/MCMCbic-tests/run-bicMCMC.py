@@ -1,13 +1,14 @@
 import random
 import sys
 import time
+from pathlib import Path
 
 import ges
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 
-sys.path.append("../")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import utils
 from MCMCfuncs import CausalMCMC
 

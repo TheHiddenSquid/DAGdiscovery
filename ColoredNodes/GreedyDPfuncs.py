@@ -18,7 +18,12 @@ DAGs during the optimization. The drawback is O(p^2) extra computation each iter
 
 # Main functions
 
-def CausalGreedyDP(samples, num_starts = 5, moves = None):
+def CausalGreedyDP(samples, num_starts = 5, moves = None, *, center=True):
+    """Find a colored graph, centering each column by default.
+
+    Set center=False for already-centered samples or an intentionally fixed
+    zero mean. The input array is never modified or standardized.
+    """
 
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
@@ -38,6 +43,8 @@ def CausalGreedyDP(samples, num_starts = 5, moves = None):
 
     num_nodes = samples.shape[1]
     num_samples = samples.shape[0]
+    if center:
+        samples = samples - samples.mean(axis=0)
     S = (1/num_samples) * samples.T @ samples
     BIC_constant = math.log(num_samples)/(num_samples*2)
     size_term = np.array([0.0] + [m * (math.log(m) - 1) for m in range(1, num_nodes + 1)])

@@ -10,10 +10,10 @@ from numba import njit
 # Main MCMC functions
 
 def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = None, P0 = None, debug = False,
-               *, return_history=False, target_bic=None, chunk_size=10_000):
+               *, return_history=False, target_bic=None, chunk_size=10_000, center=True):
     """
-    Run MCMC to find the colored DAG that best fits the data. The data is assumed to be
-    centered.
+    Run MCMC to find the colored DAG that best fits the data. By default,
+    center each column without modifying the input array.
 
     Parameters
     ----------
@@ -52,6 +52,11 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         changes the seeded trajectory because random draws are interleaved
         differently; the proposal and acceptance distributions are unchanged.
 
+    center : bool, optional
+        Subtract each column's sample mean before scoring (default True).
+        Set False for already-centered data or an intentionally fixed zero mean.
+        The caller's data is never modified; variables are not standardized.
+
     Returns
     -------
     estimate_edges : numpy.ndarray
@@ -89,6 +94,8 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
 
     num_nodes = data.shape[1]
     num_samples = data.shape[0]
+    if center:
+        data = data - data.mean(axis=0)
     S = (1/num_samples) * data.T @ data
     BIC_constant = math.log(num_samples)/(num_samples*2)
     # For a block of size m and residual sum s, its contribution is

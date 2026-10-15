@@ -13,7 +13,12 @@ This is fast per iteratation, but the search space grows extremely quick with p.
 
 # Main functions
 
-def CausalGreedyColor(samples, num_starts = 5, moves = None):
+def CausalGreedyColor(samples, num_starts = 5, moves = None, *, center=True):
+    """Find a colored graph, centering each column by default.
+
+    Set center=False for already-centered samples or an intentionally fixed
+    zero mean. The input array is never modified or standardized.
+    """
     
     #Clear cache for new run of algorithm
     calc_lstsq_S.cache_clear()
@@ -32,6 +37,8 @@ def CausalGreedyColor(samples, num_starts = 5, moves = None):
         used_moves = moves
 
     num_samples, num_nodes = samples.shape
+    if center:
+        samples = samples - samples.mean(axis=0)
     S = (1/num_samples) * samples.T @ samples
     BIC_constant = math.log(num_samples)/(num_samples*2)
     size_term = [0.0] + [m * (math.log(m) - 1) for m in range(1, num_nodes + 1)]

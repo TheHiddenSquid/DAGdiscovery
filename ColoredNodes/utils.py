@@ -284,7 +284,15 @@ def get_sorted_edges(edge_array):
 
     return [edges_in_DAG, edges_giving_DAGs, edges_not_giving_DAGs]
 
-def score_DAG(data, A, P):
+def score_DAG(data, A, P, *, center=True):
+    """Score a DAG and coloring with sample-size-normalized Gaussian BIC.
+
+    Center each column by default without changing the input array. Set
+    center=False for already-centered data or an intentionally fixed zero
+    mean. Variables are not standardized.
+    """
+    if center:
+        data = data - data.mean(axis=0)
     my_data = data.T
     num_nodes = data.shape[1]
     num_samples = data.shape[0]

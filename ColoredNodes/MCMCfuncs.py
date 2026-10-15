@@ -10,7 +10,7 @@ from numba import njit
 # Main MCMC functions
 
 def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = None, P0 = None, debug = False,
-               *, return_history=False, target_bic=None, chunk_size=10_000, center=True):
+               *, return_history=False, target_bic=None, chunk_size=10_000, center=True, refine_partition=True):
     """
     Run MCMC to find the colored DAG that best fits the data. By default,
     center each column without modifying the input array.
@@ -57,6 +57,12 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         Set False for already-centered data or an intentionally fixed zero mean.
         The caller's data is never modified; variables are not standardized.
 
+    refine_partition : bool, optional
+        Optimize the saved best DAG's partition with DP before returning
+        (default True). Ignored in mode='map'. Set False to preserve the sampled
+        partition, e.g. when intentionally holding colors fixed. Refinement
+        does not change bic_history, best_iter, or target-based stopping.
+
     Returns
     -------
     estimate_edges : numpy.ndarray
@@ -71,7 +77,11 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
         (completed iterations; initial state is iteration zero), 'target_reached'
         (None when no target was requested), and 'bic_history' (a float64 array
         of length num_iters+1, or None when recording is disabled).
-        Existing debug best_iter retains its legacy zero-based loop index.
+        In BIC mode, 'search_best_bic' is the best score before refinement and
+        'partition_refinement_gain' is the improvement after sampling; both
+        are None in MAP mode. The returned score may exceed max(bic_history).
+        Existing debug best_iter retains its legacy zero-based loop index and
+        refers to the sampled best state, not a visit to the refined model.
 
     Raises
     ------
@@ -187,6 +197,9 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
     completed_iters = 0
     target_reached = None if target_bic is None else bic >= target_bic
 
+    search_best_bic = None
+    partition_refinement_gain = None
+
     def finish(result):
         if return_history or target_bic is not None:
             # Release unused capacity when a target stops the chain early.
@@ -195,7 +208,9 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
                 history = bic_history[:completed_iters + 1].copy()
             return (*result, {"num_iters": completed_iters,
                               "target_reached": target_reached,
-                              "bic_history": history})
+                              "bic_history": history,
+                              "search_best_bic": search_best_bic,
+                              "partition_refinement_gain": partition_refinement_gain})
         return result
 
 
@@ -232,6 +247,16 @@ def CausalMCMC(data, num_iters = None, mode = "bic", move_weights = None, A0 = N
                 break
         else:
             completed_iters = 0 if target_reached else num_iters
+
+        search_best_bic = best_bic
+        if refine_partition:
+            residuals = [calc_lstsq(node, mask) for node, mask in enumerate(best_masks)]
+            refined_P, cost = utils.get_optimal_partition(residuals, BIC_constant)
+            refined_bic = -cost - BIC_constant * sum(mask.bit_count() for mask in best_masks)
+       
+            if refined_bic > best_bic:
+                best_P, best_bic = refined_P, refined_bic
+        partition_refinement_gain = best_bic - search_best_bic
 
         best_A = utils.parent_masks_to_adjacency(best_masks)
         CPDAG_A = utils.getCPDAG(best_A, best_P)

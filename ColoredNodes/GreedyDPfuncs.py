@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import utils
+from utils import get_optimal_partition, optimal_partition_core
 from numba import njit
 
 """
@@ -382,68 +383,6 @@ def calc_lstsq_S_numba(node, parents, G):
     return G[node, node] - explained
 
 
-
-# Solve dynamic programming to find optimal partition
-def get_optimal_partition(ss_res, penalty, size_terms=None):
-    residuals = np.asarray(ss_res, dtype=np.float64)
-
-    if np.any(residuals <= 0):
-        raise ValueError("Residual variances must be positive")
-
-    order = np.argsort(residuals, kind="stable")
-    sorted_residuals = residuals[order]
-
-    best_score, previous = optimal_partition_core(sorted_residuals, penalty, size_terms)
-
-    partition = []
-    end = len(residuals)
-
-    while end > 0:
-        start = int(previous[end])
-        partition.append(set(int(x) for x in order[start:end]))
-        end = start
-
-    partition.reverse()
-    return utils.sorted_partition(partition), best_score
-    
-@njit(cache=True)
-def optimal_partition_core(r, penalty, size_terms=None):
-    p = len(r)
-    if size_terms is None:
-        size_terms = np.empty(p + 1)
-        size_terms[0] = 0.0
-        for size in range(1, p + 1):
-            size_terms[size] = size * (math.log(size) - 1.0)
-
-    prefix = np.empty(p + 1)
-    prefix[0] = 0.0
-    for i in range(p):
-        prefix[i + 1] = prefix[i] + r[i]
-
-    dp = np.empty(p + 1)
-    previous = np.empty(p + 1, dtype=np.int64)
-
-    dp[0] = 0.0
-    previous[0] = -1
-
-    for end in range(1, p + 1):
-        best_score = np.inf
-        best_start = -1
-
-        for start in range(end):
-            size = end - start
-            block_sum = prefix[end] - prefix[start]
-            block_cost = 0.5 * (size * math.log(block_sum) - size_terms[size]) + penalty
-            candidate = dp[start] + block_cost
-
-            if candidate < best_score:
-                best_score = candidate
-                best_start = start
-
-        dp[end] = best_score
-        previous[end] = best_start
-
-    return dp[p], previous
 
 
 def is_improvement(candidate, current):

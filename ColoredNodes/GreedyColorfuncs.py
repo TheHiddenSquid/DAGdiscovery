@@ -13,11 +13,15 @@ This is fast per iteratation, but the search space grows extremely quick with p.
 
 # Main functions
 
-def CausalGreedyColor(samples, num_starts = 5, moves = None, *, center=True):
+def CausalGreedyColor(samples, num_starts = 5, moves = None, *, center=True, refine_partition=True):
     """Find a colored graph, centering each column by default.
 
     Set center=False for already-centered samples or an intentionally fixed
     zero mean. The input array is never modified or standardized.
+    By default, optimize the partition of each restart's final DAG with DP
+    before selecting the overall winner. Set refine_partition=False to retain
+    the local-search coloring, including when intentionally fixing colors.
+    Refinement does not resume the graph search.
     """
     
     #Clear cache for new run of algorithm
@@ -48,7 +52,11 @@ def CausalGreedyColor(samples, num_starts = 5, moves = None, *, center=True):
     best_A = np.zeros((num_nodes, num_nodes))
     num_edges = np.count_nonzero(best_A)
     best_P = [{i} for i in range(num_nodes)]
-    best_bic, _ = score_DAG_full(best_A, best_P)
+    best_bic, initial_ML_data = score_DAG_full(best_A, best_P)
+    if refine_partition:
+        refined_P, cost = utils.get_optimal_partition(initial_ML_data[0], BIC_constant)
+        if -cost > best_bic:  # The initial fallback graph has no edges.
+            best_P, best_bic = refined_P, -cost
 
     edge_probs = list(np.linspace(0,1,num_starts))
     num_colors = [int(x) for x in np.linspace(1,num_nodes,num_starts)]
@@ -72,6 +80,15 @@ def CausalGreedyColor(samples, num_starts = 5, moves = None, *, center=True):
                 best_A = A.copy()
                 best_P = utils.sorted_partition(P)
                 best_bic = bic
+
+        if refine_partition:
+            # The terminal graph's residuals are already current in ML_data.
+            refined_P, cost = utils.get_optimal_partition(ML_data[0], BIC_constant)
+            refined_bic = -cost - BIC_constant * int(np.count_nonzero(A))
+            if refined_bic > best_bic:
+                best_A = A.copy()
+                best_P = refined_P
+                best_bic = refined_bic
 
     CPDAG_A = utils.getCPDAG(best_A, best_P)
     return CPDAG_A, best_P, best_bic

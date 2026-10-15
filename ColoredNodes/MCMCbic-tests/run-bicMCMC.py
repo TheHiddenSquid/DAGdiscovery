@@ -19,7 +19,7 @@ def main():
     no_nodes = 4
     no_colors = 3
     edge_prob = 0.9
-    sample_size = 10000
+    sample_size = 1000
     MCMC_iterations = 1_000_000
 
     real_partition, real_lambda_matrix, real_omega_matrix = utils.generate_colored_DAG(no_nodes, no_colors, edge_prob)
@@ -59,7 +59,7 @@ def main():
     plt.axes(ax2)
     G = nx.DiGraph(GES_edge_array)
     nx.draw_circular(G, with_labels=True)
-    plt.title(f"GES CPDAG: bic={res[1]/sample_size:.4f}")
+    plt.title(f"GES: bic={res[1]/sample_size:.4f}")
 
     plt.axes(ax3)
     G = nx.DiGraph(MCMCedge_array)
